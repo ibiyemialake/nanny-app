@@ -1,6 +1,8 @@
 <li>
   <div class="task {% if item.completion %}done{% endif %}">
-    {% if item.completion %}
+    {% if not can_tick_tasks %}
+      <span class="task-check {% if item.completion %}done{% endif %}" aria-hidden="true" style="opacity:.45;cursor:not-allowed">{% if item.completion %}✓{% endif %}</span>
+    {% elif item.completion %}
       <form method="post" action="{% url 'undo_task' %}" class="inline">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">
         <input type="hidden" name="completion" value="{{ item.completion.pk }}">
         <button class="task-check done" type="submit" aria-label="Mark {{ item.task.title }} as not done">✓</button>
@@ -20,7 +22,7 @@
       {% if item.task.notes %}<div class="small">{{ item.task.notes }}</div>{% endif %}
       {% if item.completion %}
         <div class="small muted">Done {{ item.completion.completed_at|time:"g:i A" }}{% if item.completion.comment %}: “{{ item.completion.comment }}”{% endif %}</div>
-      {% else %}
+      {% elif can_tick_tasks %}
         <details>
           <summary>Done, with a comment</summary>
           <form method="post" action="{% url 'complete_task' %}" class="comment">{% csrf_token %}<input type="hidden" name="next" value="{{ request.path }}">

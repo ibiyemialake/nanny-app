@@ -74,6 +74,11 @@ class PeriodSummary:
     open_entries: int = 0
     pay_record: PayRecord = None
     late_checkouts: int = 0
+    unscheduled: int = 0
+
+    @property
+    def to_review(self):
+        return self.late_checkouts + self.unscheduled
 
     @property
     def pay_date(self):
@@ -107,6 +112,10 @@ def summarize_period(staff, start, end):
     for entry in entries:
         if entry.late_checkout_pending:
             summary.late_checkouts += 1
+        if entry.unscheduled_pending:
+            summary.unscheduled += 1
+        if not entry.is_payable:
+            continue
         if entry.check_out:
             summary.seconds += entry.duration_seconds
             raw_amount += Decimal(entry.duration_seconds) * entry.hourly_rate / 3600
@@ -199,6 +208,15 @@ def resolve_late_checkout(entry, actor, decision, finished_at=None):
         entry.edited = True
         log(household, actor, action, f"{entry.staff.name}: check-out {before} → {fmt_dt(entry.check_out)}.")
     entry.save(update_fields=["check_out", "late_checkout_status", "edited"])
+
+
+def resolve_unscheduled(entry, actor, approve):
+    """Approve or decline a shift worked on a day with no scheduled shift. Declined shifts aren't paid."""
+    entry.unscheduled_status = TimeEntry.UNSCHEDULED_APPROVED if approve else TimeEntry.UNSCHEDULED_DECLINED
+    entry.save(update_fields=["unscheduled_status"])
+    log(entry.staff.household, actor, "Unscheduled shift approved" if approve else "Unscheduled shift declined",
+        f"{entry.staff.name}: in {fmt_dt(entry.check_in)}, out {fmt_dt(entry.check_out)}"
+        + ("." if approve else ". Not paid."))
 
 
 # --- Tasks -----------------------------------------------------------------------

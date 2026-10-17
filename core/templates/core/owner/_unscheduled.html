@@ -1,0 +1,16 @@
+{% load home_extras %}
+<li>
+  <div class="row-main">
+    <strong>{{ e.staff.name }}</strong> worked on {{ e.check_in|date:"D M j" }}, with no shift scheduled
+    <div class="small">
+      Checked in {{ e.check_in|time:"g:i A" }}, {% if e.check_out %}checked out {{ e.check_out|time:"g:i A" }} ({{ e.duration_seconds|duration }}, {{ e.amount|money }}){% else %}still here{% endif %}
+    </div>
+    {% if e.checkout_note %}<div class="note">{{ e.checkout_note }}</div>{% endif %}
+    <form method="post" action="{% url 'review_unscheduled' e.pk %}" class="actions" style="margin-top:.6rem">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn small go" name="decision" value="approve">Approve hours</button>
+      <button class="btn small danger" name="decision" value="decline">Decline: don't pay</button>
+      <a class="btn small" href="{% url 'edit_entry' e.pk %}">Change times</a>
+    </form>
+  </div>
+</li>

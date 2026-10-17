@@ -15,6 +15,12 @@ from .services import (blocking_open_entry, current_summary, flag_forgotten_chec
 from .templatetags.home_extras import minutes_label
 
 
+def is_checked_in(staff):
+    """Checked in to a current shift. A shift flagged as a missed check-out doesn't count."""
+    entry = blocking_open_entry(staff)
+    return bool(entry and not entry.flagged_forgotten)
+
+
 @staff_required
 def staff_home(request):
     staff = request.staff
@@ -33,6 +39,7 @@ def staff_home(request):
         "todays_slots": staff.schedule.filter(weekday=today.weekday()),
         "today_entries": staff.entries.filter(check_in__date=today, check_out__isnull=False).order_by("check_in"),
         "tasks": task_items(staff.household, today, staff),
+        "can_tick_tasks": bool(open_entry and not open_entry.flagged_forgotten),
         "summary": summary,
         "last_paid": last_paid,
         "recently_paid": recently_paid,
@@ -50,22 +57,38 @@ def check_in(request):
     now = timezone.now()
     local_now = timezone.localtime(now)
     slot = slot_for(staff, local_now)
-    late = None
+    late, paid_from = None, now
     if slot:
         scheduled = local_dt(local_now.date(), slot.start_time)
+        earliest = scheduled - timedelta(minutes=household.late_grace_minutes)
+        if now < earliest:
+            messages.error(request, f"Your shift starts at {fmt_time(scheduled)}. "
+                                    f"You can check in from {fmt_time(earliest)}.")
+            return redirect("home")
         late = round((now - scheduled).total_seconds() / 60)
+        paid_from = max(now, scheduled)  # hours count from the scheduled start, not before
     entry = TimeEntry.objects.create(
-        staff=staff, check_in=now, hourly_rate=staff.hourly_rate,
+        staff=staff, check_in=paid_from, original_check_in=now if paid_from != now else None,
+        hourly_rate=staff.hourly_rate,
         scheduled_start=slot.start_time if slot else None, scheduled_end=slot.end_time if slot else None,
+        unscheduled_status="" if slot else TimeEntry.UNSCHEDULED_PENDING,
         late_minutes=late, created_ip=request.client_ip or None)
     detail = f"{staff.name} checked in at {fmt_time(now)}"
     if late is not None:
         detail += f" ({minutes_label(late)})"
+    if paid_from != now:
+        detail += f". Hours count from {fmt_time(paid_from)}"
+    if not slot:
+        detail += ". No shift was scheduled, so the hours need approval"
     log(household, request.user, "Checked in", detail + ".")
     if late is not None and late > household.late_grace_minutes and household.notify_on_late:
         notify_owner(household, f"{staff.first_name} checked in {minutes_label(late)}",
                      f"{detail}. Scheduled start was {slot.start_time.strftime('%-I:%M %p')}.")
-    messages.success(request, f"Checked in at {fmt_time(entry.check_in)}.")
+    messages.success(request, f"Checked in at {fmt_time(now)}.")
+    if paid_from != now:
+        messages.info(request, f"You're a little early. Your hours start counting at {fmt_time(paid_from)}.")
+    if not slot:
+        messages.info(request, "You don't have a shift scheduled today, so these hours will need approval.")
     return redirect("home")
 
 
@@ -97,6 +120,7 @@ def check_out(request):
     return render(request, "core/staff/check_out.html", {
         "entry": entry,
         "tasks": task_items(staff.household, timezone.localdate(), staff),
+        "can_tick_tasks": True,
     })
 
 
@@ -130,6 +154,9 @@ def back(request):
 @require_POST
 def complete_task(request):
     staff = request.staff
+    if not is_checked_in(staff):
+        messages.error(request, "Check in first, then you can tick off tasks.")
+        return redirect("home")
     task = get_object_or_404(Task, pk=request.POST.get("task"), household=request.household, is_active=True)
     if task.assigned_to_id not in (None, staff.id):
         messages.error(request, "That task belongs to someone else.")
@@ -153,6 +180,9 @@ def complete_task(request):
 @staff_required
 @require_POST
 def undo_task(request):
+    if not is_checked_in(request.staff):
+        messages.error(request, "Check in first, then you can change tasks.")
+        return redirect("home")
     completion = get_object_or_404(TaskCompletion, pk=request.POST.get("completion"), completed_by=request.staff)
     if completion.date == timezone.localdate() or completion.task.recurrence == Task.ONCE:
         completion.delete()

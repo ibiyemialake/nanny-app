@@ -27,7 +27,7 @@
   {% if open_entry and open_entry.flagged_forgotten %}
   <section class="panel attention">
     <h2>Did you forget to check out?</h2>
-    <p>You've been checked in since {{ open_entry.check_in|date:"D M j, g:i A" }}.</p>
+    <p>You've been checked in since {{ open_entry.tapped_check_in|date:"D M j, g:i A" }}.</p>
     <div class="actions">
       <a class="btn primary" href="{% url 'request_correction' open_entry.pk %}">I left earlier: fix the time</a>
       <a class="btn" href="{% url 'check_out' %}">I'm still here: check out now</a>
@@ -36,7 +36,7 @@
   {% else %}
   <section class="clock">
     {% if open_entry %}
-      <p class="clock-status">Checked in at {{ open_entry.check_in|time:"g:i A" }}</p>
+      <p class="clock-status">Checked in at {{ open_entry.tapped_check_in|time:"g:i A" }}{% if open_entry.original_check_in %}. Hours count from {{ open_entry.check_in|time:"g:i A" }}{% endif %}{% if open_entry.unscheduled_pending %}. No shift was scheduled today, so these hours need approval{% endif %}</p>
       <a class="punch out" href="{% url 'check_out' %}">
         <span class="punch-label">Check out</span>
         <span class="punch-sub elapsed" data-since="{{ open_entry.check_in|date:'c' }}">{{ open_entry.check_in|timesince }}</span>
@@ -69,6 +69,7 @@
 
   <section class="panel">
     <h2>Today's tasks</h2>
+    {% if tasks and not can_tick_tasks %}<p class="small muted">Check in to tick off tasks.</p>{% endif %}
     {% if tasks %}
       <ul class="rows">{% for item in tasks %}{% include "core/staff/_task_item.html" %}{% endfor %}</ul>
     {% else %}

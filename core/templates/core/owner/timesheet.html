@@ -7,12 +7,13 @@
   <a class="btn" href="{% url 'add_entry' %}">Add a shift by hand</a>
 </div>
 
-{% if pending or late_checkouts %}
+{% if pending or late_checkouts or unscheduled %}
 <section class="panel attention" style="margin-bottom:1.25rem">
   <h2>Time to review</h2>
   <ul class="rows">
     {% for r in pending %}{% include "core/owner/_review.html" %}{% endfor %}
     {% for e in late_checkouts %}{% include "core/owner/_late_checkout.html" %}{% endfor %}
+    {% for e in unscheduled %}{% include "core/owner/_unscheduled.html" %}{% endfor %}
   </ul>
 </section>
 {% endif %}
@@ -39,6 +40,8 @@
         <td>{{ e.staff.first_name }}</td>
         <td>{{ e.check_in|date:"D M j" }}</td>
         <td>{{ e.check_in|time:"g:i A" }}
+          {% if e.original_check_in %}<br><span class="small muted">tapped {{ e.original_check_in|time:"g:i A" }}</span>{% endif %}
+          {% if e.unscheduled_pending %}<br><span class="badge warn">Unscheduled, review</span>{% elif e.unscheduled_status == "declined" %}<br><span class="badge bad">Declined, not paid</span>{% endif %}
           {% if e.late_minutes is not None and e.late_minutes > grace %}<br><span class="badge warn">{{ e.late_minutes|minutes_label }}</span>{% endif %}</td>
         <td>{% if e.check_out %}{{ e.check_out|time:"g:i A" }}{% if e.late_checkout_pending %}<br><span class="badge warn">Late, review</span>{% endif %}{% elif e.flagged_forgotten %}<span class="badge bad">Missed</span>{% else %}<span class="badge in">Still here</span>{% endif %}</td>
         <td class="num">{{ e.duration_seconds|duration }}</td>

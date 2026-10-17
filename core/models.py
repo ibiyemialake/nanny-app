@@ -83,8 +83,17 @@ class TimeEntry(models.Model):
         (LATE_DECLINED, "Set to scheduled end"), (LATE_ADJUSTED, "Finish time changed"),
     ]
 
+    UNSCHEDULED_PENDING, UNSCHEDULED_APPROVED, UNSCHEDULED_DECLINED = "pending", "approved", "declined"
+    UNSCHEDULED_STATUSES = [
+        (UNSCHEDULED_PENDING, "Waiting for approval"), (UNSCHEDULED_APPROVED, "Approved"),
+        (UNSCHEDULED_DECLINED, "Declined, not paid"),
+    ]
+
     staff = models.ForeignKey(StaffMember, on_delete=models.PROTECT, related_name="entries")
-    check_in = models.DateTimeField()
+    check_in = models.DateTimeField(help_text="When paid time starts. An early check-in counts from the scheduled start.")
+    original_check_in = models.DateTimeField(null=True, blank=True,
+                                             help_text="The time they tapped check-in, if earlier than the scheduled "
+                                                       "start.")
     check_out = models.DateTimeField(null=True, blank=True)
     hourly_rate = models.DecimalField(max_digits=7, decimal_places=2, help_text="Rate at the time of the shift.")
     checkout_note = models.TextField(blank=True)
@@ -92,6 +101,8 @@ class TimeEntry(models.Model):
     scheduled_end = models.TimeField(null=True, blank=True)
     late_minutes = models.IntegerField(null=True, blank=True, help_text="Positive = late, negative = early.")
     flagged_forgotten = models.BooleanField(default=False)
+    unscheduled_status = models.CharField(max_length=10, choices=UNSCHEDULED_STATUSES, blank=True,
+                                          help_text="Set when someone checks in on a day with no scheduled shift.")
     late_checkout_status = models.CharField(max_length=10, choices=LATE_CHECKOUT_STATUSES, blank=True,
                                             help_text="Set when someone checks out later than their scheduled end.")
     original_check_out = models.DateTimeField(null=True, blank=True,
@@ -116,7 +127,21 @@ class TimeEntry(models.Model):
         return max(0, int((self.check_out - self.check_in).total_seconds()))
 
     @property
+    def is_payable(self):
+        return self.unscheduled_status != self.UNSCHEDULED_DECLINED
+
+    @property
+    def unscheduled_pending(self):
+        return self.unscheduled_status == self.UNSCHEDULED_PENDING
+
+    @property
+    def tapped_check_in(self):
+        return self.original_check_in or self.check_in
+
+    @property
     def amount(self):
+        if not self.is_payable:
+            return Decimal("0.00")
         return (Decimal(self.duration_seconds) * self.hourly_rate / 3600).quantize(CENT)
 
     @property

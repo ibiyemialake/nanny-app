@@ -31,6 +31,7 @@ urlpatterns = [
     path("hours/<int:pk>/", owner.edit_entry, name="edit_entry"),
     path("hours/fixes/<int:pk>/", owner.review_request, name="review_request"),
     path("hours/<int:pk>/late-checkout/", owner.review_late_checkout, name="review_late_checkout"),
+    path("hours/<int:pk>/unscheduled/", owner.review_unscheduled, name="review_unscheduled"),
     path("tasks/", owner.tasks, name="tasks"),
     path("tasks/quick/", owner.quick_task, name="quick_task"),
     path("tasks/<int:pk>/remove/", owner.archive_task, name="archive_task"),
