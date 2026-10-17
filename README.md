@@ -71,7 +71,14 @@ To update, copy the new code over and run `docker compose up -d --build` again.
 
 **Backups:** every night at `BACKUP_TIME` a checked copy of the database is saved to `./backups`, and the newest `BACKUP_KEEP` are kept. Run `docker compose run --rm backup python manage.py backup_db` for one right now. Copy that folder somewhere off the server from time to time. To restore, stop the app, copy a backup over `db.sqlite3` in the `data` volume, delete `db.sqlite3-wal` and `db.sqlite3-shm` next to it, and start it again.
 
-**HTTPS:** out of the box the app is plain HTTP on your home network. If you have a domain, put it in `deploy/Caddyfile` in place of `:8088`, publish ports 80 and 443 instead, and set `USE_HTTPS=1`.
+**HTTPS:** out of the box the app is plain HTTP on your home network. If your domain is on Route 53, you can get a real certificate without opening anything to the internet:
+
+1. In Route 53, add an A record such as `nanny.example.com` pointing to the server's home address (for example `10.0.0.92`).
+2. Create an IAM user with the policy in `deploy/route53-policy.json` (replace `HOSTED_ZONE_ID` with your zone's ID) and make an access key for it.
+3. In `.env`, set `COMPOSE_FILE=compose.yaml:compose.https.yaml`, `SITE_DOMAIN`, the two `AWS_` keys and `USE_HTTPS=1`. Add the domain to `ALLOWED_HOSTS` and `https://<domain>` to `CSRF_TRUSTED_ORIGINS`, and change `SITE_URL` to `https://<domain>`.
+4. Run `docker compose up -d --build`. Caddy proves you own the domain through a temporary DNS record, then renews the certificate on its own. The old `:8088` address redirects to the new one.
+
+Some home routers refuse DNS answers that point at a home address ("DNS rebinding protection"). If the name doesn't resolve on your Wi-Fi, allow the domain in the router's settings.
 
 Without Docker: install the requirements, set the variables from `.env`, run `python manage.py migrate` and `collectstatic --noinput`, then serve with `gunicorn homeapp.wsgi -b 0.0.0.0:8000`.
 
