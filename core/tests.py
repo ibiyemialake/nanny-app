@@ -169,8 +169,36 @@ class TaskTests(Base):
         self.assertEqual(sorted(titles), ["Old", "Snack"])
 
         self.client.login(username="nanny@x.com", password="pw-nanny-123")
+        self.client.post(reverse("check_in"))
         self.client.post(reverse("complete_task"), {"task": weekly.pk, "date": today.isoformat(), "comment": "Apples"})
         self.assertEqual(TaskCompletion.objects.get().comment, "Apples")
+
+    def test_must_check_in_to_tick_tasks(self):
+        today = timezone.localdate()
+        task = Task.objects.create(household=self.home, title="Snack", recurrence="once", due_date=today)
+        self.client.login(username="nanny@x.com", password="pw-nanny-123")
+        self.assertContains(self.client.get("/"), "Check in to tick off tasks")
+        self.client.post(reverse("complete_task"), {"task": task.pk, "date": today.isoformat()})
+        self.assertFalse(TaskCompletion.objects.exists())
+
+        self.client.post(reverse("check_in"))
+        self.assertNotContains(self.client.get("/"), "Check in to tick off tasks")
+        self.client.post(reverse("complete_task"), {"task": task.pk, "date": today.isoformat()})
+        completion = TaskCompletion.objects.get()
+
+        # Once checked out, ticks can't be undone either.
+        self.client.post(reverse("check_out"), {"checkout_note": ""})
+        self.client.post(reverse("undo_task"), {"completion": completion.pk})
+        self.assertTrue(TaskCompletion.objects.exists())
+
+    def test_missed_checkout_shift_does_not_count(self):
+        today = timezone.localdate()
+        task = Task.objects.create(household=self.home, title="Snack", recurrence="once", due_date=today)
+        TimeEntry.objects.create(staff=self.nanny, check_in=timezone.now() - timedelta(days=1), hourly_rate=20,
+                                 flagged_forgotten=True)
+        self.client.login(username="nanny@x.com", password="pw-nanny-123")
+        self.client.post(reverse("complete_task"), {"task": task.pk, "date": today.isoformat()})
+        self.assertFalse(TaskCompletion.objects.exists())
 
     def test_preset_button(self):
         preset = TaskPreset.objects.create(household=self.home, title="Bath time")
@@ -275,6 +303,76 @@ class LateCheckoutTests(Base):
         self.review(decision="decline")
         self.client.post(reverse("mark_paid", args=[self.nanny.pk]), {"pay_date": "2026-10-15"})
         self.assertEqual(PayRecord.objects.get().amount, Decimal("160.00"))
+
+
+class EarlyAndUnscheduledCheckInTests(Base):
+    day = date(2026, 10, 14)  # a Wednesday
+
+    def setUp(self):
+        super().setUp()
+        ScheduleSlot.objects.create(staff=self.nanny, weekday=self.day.weekday(), start_time=time(9), end_time=time(17))
+        self.client.login(username="nanny@x.com", password="pw-nanny-123")
+
+    def check_in_at(self, d, t):
+        with mock.patch("django.utils.timezone.now", return_value=aware(d, t)):
+            return self.client.post(reverse("check_in"), follow=True)
+
+    def test_too_early_is_refused(self):
+        r = self.check_in_at(self.day, time(8, 45))
+        self.assertFalse(TimeEntry.objects.exists())
+        self.assertContains(r, "You can check in from 8:50 AM")
+
+    def test_early_within_grace_counts_from_scheduled_start(self):
+        self.check_in_at(self.day, time(8, 55))
+        entry = TimeEntry.objects.get()
+        self.assertEqual(entry.check_in, aware(self.day, time(9)))
+        self.assertEqual(entry.original_check_in, aware(self.day, time(8, 55)))
+        self.assertEqual(entry.late_minutes, -5)
+        entry.check_out = aware(self.day, time(17))
+        entry.save()
+        self.assertEqual(entry.duration_seconds, 8 * 3600)
+
+    def test_on_time_or_late_counts_from_tap(self):
+        self.check_in_at(self.day, time(9, 20))
+        entry = TimeEntry.objects.get()
+        self.assertEqual(entry.check_in, aware(self.day, time(9, 20)))
+        self.assertIsNone(entry.original_check_in)
+        self.assertEqual(entry.unscheduled_status, "")
+
+    def test_unscheduled_day_needs_approval(self):
+        other_day = self.day + timedelta(days=1)
+        self.check_in_at(other_day, time(10))
+        entry = TimeEntry.objects.get()
+        self.assertTrue(entry.unscheduled_pending)
+        entry.check_out = aware(other_day, time(14))
+        entry.save()
+        self.client.logout()
+
+        self.client.login(username="owner@x.com", password="pw-owner-123")
+        self.assertContains(self.client.get("/"), "with no shift scheduled")
+        self.client.post(reverse("mark_paid", args=[self.nanny.pk]), {"pay_date": "2026-10-15"})
+        self.assertFalse(PayRecord.objects.exists())
+
+        self.client.post(reverse("review_unscheduled", args=[entry.pk]), {"decision": "approve"})
+        entry.refresh_from_db()
+        self.assertEqual(entry.unscheduled_status, "approved")
+        self.client.post(reverse("mark_paid", args=[self.nanny.pk]), {"pay_date": "2026-10-15"})
+        self.assertEqual(PayRecord.objects.get().amount, Decimal("80.00"))
+
+    def test_declined_unscheduled_shift_not_paid(self):
+        other_day = self.day + timedelta(days=1)
+        entry = TimeEntry.objects.create(staff=self.nanny, check_in=aware(other_day, time(10)),
+                                         check_out=aware(other_day, time(14)), hourly_rate=20,
+                                         unscheduled_status="pending")
+        self.client.logout()
+        self.client.login(username="owner@x.com", password="pw-owner-123")
+        self.client.post(reverse("review_unscheduled", args=[entry.pk]), {"decision": "decline"})
+        entry.refresh_from_db()
+        self.assertEqual(entry.unscheduled_status, "declined")
+        self.assertEqual(entry.amount, Decimal("0.00"))
+        summary = summarize_period(self.nanny, date(2026, 10, 1), date(2026, 10, 15))
+        self.assertEqual(summary.amount, Decimal("0.00"))
+        self.assertEqual(summary.to_review, 0)
 
 
 class InteracTests(Base):

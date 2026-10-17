@@ -29,7 +29,7 @@
         <strong>{{ s.amount|money }}</strong>
         {% if s.pay_record %}<div><span class="badge in">Paid {{ s.pay_record.paid_at|date:"M j, g:i A" }}</span></div>
         {% elif s.open_entries %}<div><span class="badge warn">Shift with no check-out</span></div><a class="small" href="{% url 'timesheet' %}">Fix on Hours</a>
-        {% elif s.late_checkouts %}<div><span class="badge warn">Late check-out to review</span></div>
+        {% elif s.to_review %}<div><span class="badge warn">Hours to review first</span></div>
         {% else %}
         <form method="post" action="{% url 'mark_paid' s.staff.pk %}" style="margin-top:.4rem"
               onsubmit="return confirm('Mark {{ s.amount|money }} as paid to {{ s.staff.first_name|escapejs }}?')">{% csrf_token %}
@@ -45,7 +45,7 @@
 </section>
 {% endif %}
 
-{% if forgotten or pending or late_checkouts %}
+{% if forgotten or pending or late_checkouts or unscheduled %}
 <section class="panel attention" style="margin-bottom:1.25rem">
   <h2>Needs your attention</h2>
   <ul class="rows">
@@ -57,6 +57,7 @@
     {% endfor %}
     {% for r in pending %}{% include "core/owner/_review.html" %}{% endfor %}
     {% for e in late_checkouts %}{% include "core/owner/_late_checkout.html" %}{% endfor %}
+    {% for e in unscheduled %}{% include "core/owner/_unscheduled.html" %}{% endfor %}
   </ul>
 </section>
 {% endif %}
@@ -78,7 +79,7 @@
           </div>
           <div class="row-side">
             {% if p.open_entry %}
-              <span class="badge in">Here since {{ p.open_entry.check_in|time:"g:i A" }}</span>
+              <span class="badge in">Here since {{ p.open_entry.tapped_check_in|time:"g:i A" }}</span>
             {% elif p.today_entries %}
               <span class="badge out">Gone for the day</span>
             {% else %}

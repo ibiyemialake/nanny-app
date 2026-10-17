@@ -17,8 +17,8 @@ from .models import (WEEKDAYS, AuditLog, Invitation, PayRecord, ScheduleSlot, St
                      TaskPreset, TimeEditRequest, TimeEntry)
 from .permissions import owner_required
 from .services import (blocking_open_entry, current_summary, flag_forgotten_checkouts, fmt_dt, local_dt, log,
-                       payday_summaries, period_containing, recent_periods, resolve_late_checkout, summarize_period,
-                       task_items)
+                       payday_summaries, period_containing, recent_periods, resolve_late_checkout, resolve_unscheduled,
+                       summarize_period, task_items)
 
 
 def safe_next(request, fallback):
@@ -30,6 +30,11 @@ def safe_next(request, fallback):
 
 def late_checkouts(household):
     return (TimeEntry.objects.filter(staff__household=household, late_checkout_status=TimeEntry.LATE_PENDING)
+            .select_related("staff__user").order_by("check_in"))
+
+
+def unscheduled_shifts(household):
+    return (TimeEntry.objects.filter(staff__household=household, unscheduled_status=TimeEntry.UNSCHEDULED_PENDING)
             .select_related("staff__user").order_by("check_in"))
 
 
@@ -76,6 +81,7 @@ def dashboard(request):
         "forgotten": forgotten,
         "pending": pending,
         "late_checkouts": late_checkouts(household),
+        "unscheduled": unscheduled_shifts(household),
         "review_form": ReviewForm(),
         "notes": notes,
         "tasks": task_items(household, today),
@@ -224,6 +230,9 @@ def mark_paid(request, pk):
     if summary.late_checkouts:
         messages.error(request, "This pay period has a late check-out to review. Accept, decline or change it first.")
         return safe_next(request, back)
+    if summary.unscheduled:
+        messages.error(request, "This pay period has an unscheduled shift to approve or decline first.")
+        return safe_next(request, back)
     _, created = PayRecord.objects.get_or_create(
         staff=staff, pay_date=end,
         defaults={"period_start": start, "period_end": end, "hours": summary.hours,
@@ -271,6 +280,7 @@ def timesheet(request):
         "pending": TimeEditRequest.objects.filter(entry__staff__household=household,
                                                   status=TimeEditRequest.PENDING).select_related("entry__staff__user"),
         "late_checkouts": late_checkouts(household),
+        "unscheduled": unscheduled_shifts(household),
         "review_form": ReviewForm(),
         "grace": household.late_grace_minutes,
     })
@@ -369,6 +379,22 @@ def review_late_checkout(request, pk):
         messages.success(request, f"Declined. {name}'s shift now ends at the scheduled time, {fmt_dt(entry.check_out)}.")
     else:
         messages.success(request, f"Updated. {name}'s shift now ends at {fmt_dt(entry.check_out)}.")
+    return safe_next(request, "timesheet")
+
+
+@owner_required
+@require_POST
+def review_unscheduled(request, pk):
+    entry = get_object_or_404(TimeEntry.objects.select_related("staff__user"), pk=pk,
+                              staff__household=request.household, unscheduled_status=TimeEntry.UNSCHEDULED_PENDING)
+    approve = request.POST.get("decision") == "approve"
+    resolve_unscheduled(entry, request.user, approve)
+    day = timezone.localtime(entry.check_in)
+    if approve:
+        messages.success(request, f"Approved. {entry.staff.first_name}'s hours for {day:%b %-d} count.")
+    else:
+        messages.info(request, f"Declined. {entry.staff.first_name} won't be paid for {day:%b %-d}. "
+                               f"The shift stays in the records.")
     return safe_next(request, "timesheet")
 
 

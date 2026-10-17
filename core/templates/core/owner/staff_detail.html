@@ -20,7 +20,7 @@
         <div><strong>{{ current.amount|money }}</strong><span>{% if current.pay_record %}paid {{ current.pay_record.paid_at|date:"M j" }}{% else %}owed so far{% endif %}</span></div>
       </div>
       {% if current.open_entries %}<p class="small"><span class="badge warn">{{ current.open_entries }} open shift{{ current.open_entries|pluralize }}</span> not counted yet.</p>{% endif %}
-      {% if current.late_checkouts %}<p class="small"><span class="badge warn">{{ current.late_checkouts }} late check-out{{ current.late_checkouts|pluralize }}</span> to review on the <a href="{% url 'timesheet' %}">Hours page</a> before marking paid.</p>{% endif %}
+      {% if current.to_review %}<p class="small"><span class="badge warn">{{ current.to_review }} shift{{ current.to_review|pluralize }}</span> to review on the <a href="{% url 'timesheet' %}">Hours page</a> before marking paid.</p>{% endif %}
       {% if current.is_due and not current.pay_record %}
       <form method="post" action="{% url 'mark_paid' staff.pk %}">{% csrf_token %}<input type="hidden" name="pay_date" value="{{ current.end|date:'Y-m-d' }}">
         <button class="btn go">Paid {{ current.amount|money }}</button></form>
