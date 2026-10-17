@@ -20,9 +20,10 @@ from .permissions import get_role
 
 def client_ip(request):
     if settings.TRUST_X_FORWARDED_FOR:
+        # The last address is the one our own proxy added. Earlier ones come from the client and can be faked.
         forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
         if forwarded:
-            return forwarded.split(",")[0].strip()
+            return forwarded.split(",")[-1].strip()
     return request.META.get("REMOTE_ADDR", "")
 
 

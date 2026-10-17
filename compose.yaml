@@ -1,0 +1,52 @@
+# Run with:  docker compose up -d --build
+# Settings come from .env (copy .env.example). The app is reachable at http://<server>:${HTTP_PORT:-8088}.
+name: nanny-app
+
+services:
+  web:
+    build: .
+    image: nanny-app:latest
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      # Only Caddy can reach this container, so the address Caddy forwards can be trusted.
+      TRUST_X_FORWARDED_FOR: "1"
+    volumes:
+      - data:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2.10.2-alpine
+    ports:
+      - "${HTTP_PORT:-8088}:8088"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Copies the database to ./backups every night and keeps the newest BACKUP_KEEP copies.
+  backup:
+    image: nanny-app:latest
+    env_file: .env
+    environment:
+      DATA_DIR: /data
+      BACKUP_DIR: /backups
+    command: ["python", "manage.py", "backup_db", "--every-day-at", "${BACKUP_TIME:-03:00}"]
+    volumes:
+      - data:/data
+      - ./backups:/backups
+    depends_on:
+      web:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+volumes:
+  data:
+  caddy-data:
+  caddy-config:

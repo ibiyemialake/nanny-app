@@ -1,3 +1,4 @@
+import os
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from unittest import mock
@@ -154,6 +155,16 @@ class NetworkTests(Base):
     def test_owner_not_restricted(self):
         self.client.post(reverse("login"), {"username": "owner@x.com", "password": "pw-owner-123"}, REMOTE_ADDR="8.8.8.8")
         self.assertEqual(self.client.get("/", REMOTE_ADDR="8.8.8.8").status_code, 200)
+
+    @override_settings(TRUST_X_FORWARDED_FOR=True)
+    def test_forwarded_address_cannot_be_faked(self):
+        # The proxy appends the real address; a home address the client put first must not count.
+        r = self.client.post(reverse("login"), {"username": "nanny@x.com", "password": "pw-nanny-123"},
+                             REMOTE_ADDR="172.18.0.2", HTTP_X_FORWARDED_FOR="192.168.1.23, 8.8.8.8")
+        self.assertContains(r, "home Wi-Fi")
+        r = self.client.post(reverse("login"), {"username": "nanny@x.com", "password": "pw-nanny-123"},
+                             REMOTE_ADDR="172.18.0.2", HTTP_X_FORWARDED_FOR="192.168.1.23")
+        self.assertEqual(r.status_code, 302)
 
 
 class TaskTests(Base):
@@ -462,3 +473,30 @@ class PagesRender(Base):
         self.client.login(username="nanny@x.com", password="pw-nanny-123")
         for name in ["home", "my_hours"]:
             self.assertEqual(self.client.get(reverse(name)).status_code, 200, name)
+
+
+class BackupTests(TestCase):
+    def test_backup_copies_database_and_keeps_newest(self):
+        import sqlite3
+        import tempfile
+        from pathlib import Path
+
+        from django.core.management import call_command
+
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "db.sqlite3"
+            with sqlite3.connect(source) as db:
+                db.execute("CREATE TABLE t (x)")
+                db.execute("INSERT INTO t VALUES (42)")
+            db.close()
+            folder = Path(tmp) / "backups"
+            for stamp in ("2026-01-01-000000", "2026-01-02-000000"):
+                folder.mkdir(exist_ok=True)
+                (folder / f"db-{stamp}.sqlite3").write_bytes(b"old")
+            call_command("backup_db", to=str(folder), keep=2, source=str(source), stdout=open(os.devnull, "w"))
+            backups = sorted(folder.glob("db-*.sqlite3"))
+            self.assertEqual(len(backups), 2)
+            self.assertEqual(backups[0].name, "db-2026-01-02-000000.sqlite3")
+            copy = sqlite3.connect(backups[-1])
+            self.assertEqual(copy.execute("SELECT x FROM t").fetchone(), (42,))
+            copy.close()

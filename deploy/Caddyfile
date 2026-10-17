@@ -1,0 +1,6 @@
+# Plain HTTP on the home network. For HTTPS, replace ":8088" with your domain (and set USE_HTTPS=1 in .env).
+# Caddy replaces any X-Forwarded-For the browser sends with the real address, which the Wi-Fi check relies on.
+:8088 {
+	encode zstd gzip
+	reverse_proxy web:8000
+}

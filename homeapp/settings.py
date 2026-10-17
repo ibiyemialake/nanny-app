@@ -7,6 +7,8 @@ so you never have to edit this file to deploy. See README.md.
 import os
 from pathlib import Path
 
+from django.core.exceptions import ImproperlyConfigured
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -18,8 +20,11 @@ def env_bool(name, default=False):
     return os.environ.get(name, "1" if default else "0").strip().lower() in ("1", "true", "yes", "on")
 
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "dev-only-insecure-key-change-me")
+INSECURE_SECRET_KEY = "dev-only-insecure-key-change-me"
+SECRET_KEY = os.environ.get("SECRET_KEY", INSECURE_SECRET_KEY)
 DEBUG = env_bool("DEBUG", True)
+if not DEBUG and SECRET_KEY in ("", INSECURE_SECRET_KEY, "change-me"):
+    raise ImproperlyConfigured("Set SECRET_KEY to a long random string when DEBUG is off. See .env.example.")
 ALLOWED_HOSTS = env_list("ALLOWED_HOSTS", "*" if DEBUG else "localhost,127.0.0.1")
 CSRF_TRUSTED_ORIGINS = env_list("CSRF_TRUSTED_ORIGINS")
 
@@ -73,8 +78,19 @@ DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
         "NAME": DATA_DIR / "db.sqlite3",
+        # WAL lets the nightly backup and page loads read while a write is happening, and
+        # IMMEDIATE avoids "database is locked" errors when two requests write at once.
+        "OPTIONS": {
+            "transaction_mode": "IMMEDIATE",
+            "timeout": 20,
+            "init_command": "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL;",
+        },
     }
 }
+
+# Where `manage.py backup_db` writes copies of the database, and how many it keeps.
+BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", DATA_DIR / "backups"))
+BACKUP_KEEP = int(os.environ.get("BACKUP_KEEP", "14"))
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 8}},
@@ -108,6 +124,8 @@ if EMAIL_HOST:
     EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
     EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
     EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+    # Emails are sent while the page loads, so don't let a slow mail server hang it.
+    EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
 else:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "Home <no-reply@localhost>")
@@ -122,3 +140,19 @@ SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000").rstrip("/")
 STAFF_ALLOWED_NETWORKS = env_list("STAFF_ALLOWED_NETWORKS")
 # Only turn this on if the app sits behind a reverse proxy you control.
 TRUST_X_FORWARDED_FOR = env_bool("TRUST_X_FORWARDED_FOR", False)
+
+# --- HTTPS ---------------------------------------------------------------------
+# Turn on once the app is served over https://. Cookies are then only sent over HTTPS.
+USE_HTTPS = env_bool("USE_HTTPS", False)
+SESSION_COOKIE_SECURE = CSRF_COOKIE_SECURE = USE_HTTPS
+if USE_HTTPS and TRUST_X_FORWARDED_FOR:
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# --- Logging -------------------------------------------------------------------
+# Send errors to the console so they show up in `docker compose logs` / journalctl.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": "WARNING"},
+}
