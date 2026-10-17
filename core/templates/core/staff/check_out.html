@@ -1,0 +1,29 @@
+{% extends "core/base.html" %}
+{% block main_class %}narrow{% endblock %}
+{% block title %}Check out{% endblock %}
+{% block content %}
+<div class="stack">
+  <section class="panel">
+    <h1>Check out</h1>
+    <p class="muted">Checked in {{ entry.check_in|date:"D M j, g:i A" }}.</p>
+    <form method="post">{% csrf_token %}
+      <div class="field">
+        <label for="note">Notes for the family</label>
+        <textarea id="note" name="checkout_note" rows="5" placeholder="How the day went, meals, naps, anything we should know"></textarea>
+        <span class="helptext">Optional.</span>
+      </div>
+      <button class="btn primary block" type="submit">Check out now</button>
+    </form>
+  </section>
+  {% with open_tasks=tasks %}
+  {% if open_tasks %}
+  <section class="panel">
+    <h2>Before you go</h2>
+    <ul class="rows">{% for item in open_tasks %}{% if not item.completion %}{% include "core/staff/_task_item.html" %}{% endif %}{% endfor %}</ul>
+    <p class="small muted" style="margin-top:.75rem">Ticked everything? Then you're all set.</p>
+  </section>
+  {% endif %}
+  {% endwith %}
+  <p><a href="{% url 'home' %}">Back</a></p>
+</div>
+{% endblock %}

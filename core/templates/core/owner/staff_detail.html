@@ -1,0 +1,92 @@
+{% extends "core/base.html" %}
+{% load home_extras %}
+{% block title %}{{ staff.name }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ staff.name }}</h1><p class="muted">{{ staff.user.email }}{% if not staff.is_active %} <span class="badge bad">Access removed</span>{% endif %}</p></div>
+  <form method="post" action="{% url 'toggle_active' staff.pk %}"
+        onsubmit="return confirm('{% if staff.is_active %}Remove {{ staff.first_name|escapejs }}’s access? Their hours and notes are kept.{% else %}Let {{ staff.first_name|escapejs }} sign in again?{% endif %}')">{% csrf_token %}
+    <button class="btn {% if staff.is_active %}danger{% endif %}" type="submit">{% if staff.is_active %}Remove access{% else %}Restore access{% endif %}</button>
+  </form>
+</div>
+
+<div class="grid two">
+  <div class="stack">
+    <section class="panel {% if current.is_payday %}celebrate{% endif %}">
+      <h2>{% if current.is_payday %}Payday today{% else %}Current pay period{% endif %}</h2>
+      <p class="muted small">{{ current.start|date:"M j" }} – {{ current.end|date:"M j" }}, paid {{ current.end|date:"l M j" }}</p>
+      <div class="tally">
+        <div><strong>{{ current.seconds|duration|default:"0m" }}</strong><span>{{ current.hours }} hours</span></div>
+        <div><strong>{{ current.amount|money }}</strong><span>{% if current.pay_record %}paid {{ current.pay_record.paid_at|date:"M j" }}{% else %}owed so far{% endif %}</span></div>
+      </div>
+      {% if current.open_entries %}<p class="small"><span class="badge warn">{{ current.open_entries }} open shift{{ current.open_entries|pluralize }}</span> not counted yet.</p>{% endif %}
+      {% if current.late_checkouts %}<p class="small"><span class="badge warn">{{ current.late_checkouts }} late check-out{{ current.late_checkouts|pluralize }}</span> to review on the <a href="{% url 'timesheet' %}">Hours page</a> before marking paid.</p>{% endif %}
+      {% if current.is_due and not current.pay_record %}
+      <form method="post" action="{% url 'mark_paid' staff.pk %}">{% csrf_token %}<input type="hidden" name="pay_date" value="{{ current.end|date:'Y-m-d' }}">
+        <button class="btn go">Paid {{ current.amount|money }}</button></form>
+      {% endif %}
+      {% include "core/staff/_entries.html" with entries=current.entries owner_view=True %}
+    </section>
+
+    <section class="panel">
+      <h2>Earlier periods</h2>
+      <ul class="rows">
+        {% for p in past %}
+        <li>
+          <div class="row-main"><strong>{{ p.start|date:"M j" }} – {{ p.end|date:"M j" }}</strong><div class="small muted">{{ p.entries|length }} shift{{ p.entries|length|pluralize }}, {{ p.seconds|duration|default:"0m" }}</div></div>
+          <div class="row-side num"><strong>{{ p.amount|money }}</strong><br>
+            {% if p.pay_record %}<span class="badge in">Paid</span>
+            {% elif p.seconds %}<form method="post" action="{% url 'mark_paid' staff.pk %}" class="inline">{% csrf_token %}<input type="hidden" name="pay_date" value="{{ p.end|date:'Y-m-d' }}"><button class="btn small go">Paid</button></form>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+
+    {% if pay_records %}
+    <section class="panel">
+      <h2>Payment history</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Payday</th><th>Period</th><th class="num">Hours</th><th class="num">Amount</th><th></th></tr></thead>
+        <tbody>{% for r in pay_records %}
+          <tr><td>{{ r.pay_date|date:"M j, Y" }}</td><td>{{ r.period_start|date:"M j" }} – {{ r.period_end|date:"M j" }}</td>
+            <td class="num">{{ r.hours }}</td><td class="num">{{ r.amount|money }}</td>
+            <td><form method="post" action="{% url 'unmark_paid' r.pk %}" onsubmit="return confirm('Undo this payment record?')">{% csrf_token %}<button class="btn small danger">Undo</button></form></td></tr>
+        {% endfor %}</tbody>
+      </table></div>
+    </section>
+    {% endif %}
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <h2>Weekly schedule</h2>
+      {% if slots %}
+      <ul class="rows">
+        {% for s in slots %}
+        <li><div class="row-main">{{ s.get_weekday_display }}<div class="small muted">{{ s.start_time|time:"g:i A" }}–{{ s.end_time|time:"g:i A" }}{% if s.overnight %} (overnight){% endif %}</div></div>
+          <form method="post" action="{% url 'delete_slot' s.pk %}">{% csrf_token %}<button class="btn small danger" aria-label="Remove {{ s.get_weekday_display }}">Remove</button></form></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">No schedule yet. Without one, check-ins can't be marked late or early.</p>{% endif %}
+      <h3 style="margin-top:1.25rem">Add hours</h3>
+      <form method="post">{% csrf_token %}
+        {% include "core/_form.html" with form=schedule_form %}
+        <button class="btn primary" name="add_slot" value="1">Add to schedule</button>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Pay</h2>
+      <form method="post" id="pay-form">{% csrf_token %}
+        {% include "core/_form.html" with form=pay_form %}
+        <button class="btn primary" name="save_pay" value="1">Save pay settings</button>
+      </form>
+      <p class="small muted" style="margin-top:.75rem">Paydays are the 15th and the last day of each month. A pay period runs up to and including payday. Changing the rate only affects shifts from now on.</p>
+      <h3 style="margin-top:1.25rem">Interac e-Transfer</h3>
+      {% if staff.interac %}<p class="num">{{ staff.interac }}</p>
+      {% else %}<p class="empty">{{ staff.first_name }} hasn't added Interac details yet. They can add them on their Hours &amp; pay page.</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}
+{% block main_class %}narrow{% endblock %}
+{% block title %}Fix a shift{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>Fix a shift</h1>
+  <p class="muted">Recorded: in {{ entry.check_in|date:"D M j, g:i A" }}{% if entry.check_out %}, out {{ entry.check_out|date:"g:i A" }}{% else %}, no check-out{% endif %}. Your hours change once this is approved.</p>
+  <form method="post">{% csrf_token %}
+    {% include "core/_form.html" %}
+    <div class="actions">
+      <button class="btn primary" type="submit">Send for approval</button>
+      <a class="btn" href="{% url 'home' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "core/base.html" %}
+{% block title %}Connect to the home Wi-Fi{% endblock %}
+{% block content %}
+<div class="auth"><div class="panel">
+  <h1>Connect to the home Wi-Fi</h1>
+  <p>This page only opens on the home network. Turn on Wi-Fi, join the home network, then <a href="{% url 'login' %}">sign in again</a>.</p>
+  <p class="muted small">If you're already on it, try turning mobile data off.</p>
+</div></div>
+{% endblock %}

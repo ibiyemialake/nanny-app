@@ -1,0 +1,3 @@
+{% if form.non_field_errors %}<ul class="errorlist nonfield">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>{% endif %}
+{% for field in form.visible_fields %}<div class="field">{{ field.as_field_group }}</div>{% endfor %}
+{% for field in form.hidden_fields %}{{ field }}{% endfor %}

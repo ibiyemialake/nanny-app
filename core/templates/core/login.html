@@ -1,0 +1,15 @@
+{% extends "core/base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="auth">
+  <div class="panel">
+    <h1>Sign in</h1>
+    <p class="muted">Nannies: make sure you're on the home Wi-Fi.</p>
+    <form method="post">{% csrf_token %}
+      {% include "core/_form.html" %}
+      <input type="hidden" name="next" value="{{ next }}">
+      <button class="btn primary block" type="submit">Sign in</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

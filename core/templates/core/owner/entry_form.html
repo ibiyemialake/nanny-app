@@ -1,0 +1,21 @@
+{% extends "core/base.html" %}
+{% block main_class %}narrow{% endblock %}
+{% block title %}{% if entry %}Edit shift{% else %}Add a shift{% endif %}{% endblock %}
+{% block content %}
+<section class="panel">
+  {% if entry %}
+    <h1>Edit {{ entry.staff.first_name }}'s shift</h1>
+    <p class="muted">{{ entry.check_in|date:"l, F j" }}. Changes are recorded in the activity log.</p>
+  {% else %}
+    <h1>Add a shift</h1>
+    <p class="muted">For a shift someone forgot to record. It's marked as adjusted.</p>
+  {% endif %}
+  <form method="post">{% csrf_token %}
+    {% include "core/_form.html" %}
+    <div class="actions">
+      <button class="btn primary" type="submit">{% if entry %}Save changes{% else %}Add shift{% endif %}</button>
+      <a class="btn" href="{% url 'timesheet' %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

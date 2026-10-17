@@ -1,0 +1,16 @@
+{% extends "core/base.html" %}
+{% block title %}Activity{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Activity</h1><p class="muted small">Every check-in, change and payment, newest first.</p></div>
+<section class="panel">
+  {% if logs %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead>
+    <tbody>{% for l in logs %}
+      <tr><td class="small" style="white-space:nowrap">{{ l.created_at|date:"M j, g:i A" }}</td>
+        <td>{{ l.actor.first_name|default:"System" }}</td><td>{{ l.action }}</td><td class="small">{{ l.details }}</td></tr>
+    {% endfor %}</tbody>
+  </table></div>
+  {% else %}<p class="empty">Nothing yet.</p>{% endif %}
+</section>
+{% endblock %}

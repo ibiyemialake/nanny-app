@@ -1,0 +1,52 @@
+{% extends "core/base.html" %}
+{% load home_extras %}
+{% block main_class %}narrow{% endblock %}
+{% block title %}My hours & pay{% endblock %}
+{% block content %}
+<div class="stack">
+  <section class="panel {% if current.is_payday %}celebrate{% endif %}">
+    <h1>{% if current.is_payday %}Payday today{% else %}This pay period{% endif %}</h1>
+    <p class="muted">{{ current.start|date:"M j" }} – {{ current.end|date:"M j" }} · ${{ staff.hourly_rate }}/hour · paid on the 15th and the last day of the month</p>
+    <div class="tally">
+      <div><strong>{{ current.seconds|duration|default:"0m" }}</strong><span>{{ current.hours }} hours</span></div>
+      <div><strong>{{ current.amount|money }}</strong><span>{% if current.pay_record %}paid {{ current.pay_record.paid_at|date:"M j" }}{% else %}to be paid {{ current.end|date:"M j" }}{% endif %}</span></div>
+    </div>
+    {% include "core/staff/_entries.html" with entries=current.entries %}
+  </section>
+
+  <section class="panel" id="payment-details">
+    <h2>Payment details</h2>
+    <form method="post">{% csrf_token %}
+      {% include "core/_form.html" with form=interac_form %}
+      <button class="btn primary" type="submit">Save</button>
+    </form>
+  </section>
+
+  {% if requests %}
+  <section class="panel">
+    <h2>Time fixes</h2>
+    <ul class="rows">
+      {% for r in requests %}
+      <li><div class="row-main">{{ r.new_check_in|date:"D M j, g:i A" }} – {{ r.new_check_out|date:"g:i A" }}<div class="small muted">{{ r.reason }}{% if r.review_note %} · Reply: {{ r.review_note }}{% endif %}</div></div>
+        <span class="badge {% if r.status == 'approved' %}in{% elif r.status == 'rejected' %}bad{% else %}warn{% endif %}">{{ r.get_status_display }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  <section class="panel">
+    <h2>Past pay periods</h2>
+    <ul class="rows">
+      {% for p in past %}
+      <li>
+        <div class="row-main"><strong>{{ p.start|date:"M j" }} – {{ p.end|date:"M j" }}</strong>
+          <details><summary class="small">{{ p.entries|length }} shift{{ p.entries|length|pluralize }}</summary>{% include "core/staff/_entries.html" with entries=p.entries %}</details>
+        </div>
+        <div class="row-side num">{{ p.seconds|duration|default:"0m" }}<br><strong>{{ p.amount|money }}</strong><br>
+          {% if p.pay_record %}<span class="badge in">Paid {{ p.pay_record.paid_at|date:"M j" }}</span>{% elif p.seconds %}<span class="badge">Not paid yet</span>{% endif %}</div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+{% endblock %}

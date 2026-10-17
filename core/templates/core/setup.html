@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}
+{% block title %}Set up your home{% endblock %}
+{% block content %}
+<div class="auth">
+  <div class="panel">
+    <h1>Set up your home</h1>
+    <p class="muted">This creates your account. You'll invite your nannies next.</p>
+    <form method="post">{% csrf_token %}
+      {% include "core/_form.html" %}
+      <button class="btn primary block" type="submit">Create my home</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

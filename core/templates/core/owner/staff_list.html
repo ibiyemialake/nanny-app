@@ -1,0 +1,57 @@
+{% extends "core/base.html" %}
+{% block title %}Nannies{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Nannies</h1></div>
+<div class="grid two">
+  <div class="stack">
+    <section class="panel">
+      <h2>Your nannies</h2>
+      {% if active %}
+      <ul class="rows">
+        {% for s in active %}
+        <li><div class="row-main"><a href="{% url 'staff_detail' s.pk %}"><strong>{{ s.name }}</strong></a><div class="small muted">{{ s.user.email }}</div></div>
+          <div class="row-side num">${{ s.hourly_rate }}/h<div class="small muted">{{ s.interac|default:"No Interac details yet" }}</div></div></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">No one yet. Send an invite to get started.</p>{% endif %}
+    </section>
+
+    {% if invitations %}
+    <section class="panel">
+      <h2>Waiting to sign up</h2>
+      <ul class="rows">
+        {% for inv, link in invitations %}
+        <li><div class="row-main"><strong>{{ inv.email }}</strong> <span class="small muted">expires {{ inv.expires_at|date:"M j" }}</span>
+            <div class="copy-link"><input type="text" value="{{ link }}" readonly aria-label="Invite link for {{ inv.email }}" onclick="this.select()">
+              <button class="btn small" type="button" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ link }}'); this.textContent='Copied'">Copy</button></div>
+          </div>
+          <form method="post" action="{% url 'revoke_invite' inv.pk %}">{% csrf_token %}<button class="btn small danger">Cancel invite</button></form>
+        </li>
+        {% endfor %}
+      </ul>
+      <p class="small muted" style="margin-top:.75rem">The link only works on your home Wi-Fi once that restriction is turned on.</p>
+    </section>
+    {% endif %}
+
+    {% if inactive %}
+    <section class="panel">
+      <h2>No longer working here</h2>
+      <ul class="rows">
+        {% for s in inactive %}
+        <li><div class="row-main"><a href="{% url 'staff_detail' s.pk %}">{{ s.name }}</a><div class="small muted">Access removed {{ s.deactivated_at|date:"M j, Y" }}</div></div></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+
+  <section class="panel">
+    <h2>Invite a nanny</h2>
+    <p class="small muted">They'll get an email with a sign-up link that works for 7 days.</p>
+    <form method="post">{% csrf_token %}
+      {% include "core/_form.html" %}
+      <button class="btn primary" type="submit">Send invite</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% load home_extras %}
+<li>
+  <div class="row-main">
+    <strong>{{ e.staff.name }}</strong> checked out {{ e.late_checkout_minutes|minutes_label|cut:" late" }} after their scheduled end on {{ e.check_in|date:"D M j" }}
+    <div class="small">
+      Scheduled: {{ e.scheduled_start|time:"g:i A" }}–{{ e.scheduled_end|time:"g:i A" }}<br>
+      Checked in {{ e.check_in|time:"g:i A" }}, checked out <strong>{{ e.check_out|date:"M j, g:i A" }}</strong> ({{ e.duration_seconds|duration }})
+    </div>
+    {% if e.checkout_note %}<div class="note">{{ e.checkout_note }}</div>{% endif %}
+    <form method="post" action="{% url 'review_late_checkout' e.pk %}" class="actions" style="margin-top:.6rem">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <button class="btn small go" name="decision" value="accept">Accept {{ e.check_out|time:"g:i A" }}</button>
+      <button class="btn small danger" name="decision" value="decline">Decline: end at {{ e.scheduled_end|time:"g:i A" }}</button>
+    </form>
+    <form method="post" action="{% url 'review_late_checkout' e.pk %}" class="actions" style="margin-top:.4rem">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <input type="datetime-local" name="finished_at" value="{{ e.check_out|date:'Y-m-d\TH:i' }}"
+             min="{{ e.check_in|date:'Y-m-d\TH:i' }}" max="{{ e.check_out|date:'Y-m-d\TH:i' }}"
+             aria-label="Time {{ e.staff.first_name }} actually finished" required>
+      <button class="btn small" name="decision" value="adjust">Set finish time</button>
+    </form>
+  </div>
+</li>

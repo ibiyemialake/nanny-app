@@ -1,0 +1,43 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17785a">
+  <title>{% block title %}{{ current_household.name|default:"Home" }}{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'core/style.css' %}">
+</head>
+<body>
+{% if role %}
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="{% url 'home' %}">{{ current_household.name }}</a>
+    <nav class="nav" aria-label="Main">
+      {% url 'home' as u_home %}
+      {% if role == "owner" %}
+        {% url 'timesheet' as u_hours %}{% url 'tasks' as u_tasks %}{% url 'staff_list' as u_staff %}{% url 'activity' as u_activity %}{% url 'household_settings' as u_settings %}
+        <a href="{{ u_home }}" {% if request.path == u_home %}aria-current="page"{% endif %}>Today</a>
+        <a href="{{ u_hours }}" {% if request.path == u_hours %}aria-current="page"{% endif %}>Hours</a>
+        <a href="{{ u_tasks }}" {% if request.path == u_tasks %}aria-current="page"{% endif %}>Tasks</a>
+        <a href="{{ u_staff }}" {% if request.path == u_staff %}aria-current="page"{% endif %}>Nannies</a>
+        <a href="{{ u_activity }}" {% if request.path == u_activity %}aria-current="page"{% endif %}>Activity</a>
+        <a href="{{ u_settings }}" {% if request.path == u_settings %}aria-current="page"{% endif %}>Settings</a>
+      {% else %}
+        {% url 'my_hours' as u_mine %}
+        <a href="{{ u_home }}" {% if request.path == u_home %}aria-current="page"{% endif %}>Today</a>
+        <a href="{{ u_mine }}" {% if request.path == u_mine %}aria-current="page"{% endif %}>My hours &amp; pay</a>
+      {% endif %}
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button type="submit">Sign out</button></form>
+    </nav>
+  </div>
+</header>
+{% endif %}
+<main class="{% block main_class %}{% endblock %}">
+  {% if messages %}
+    <ul class="messages">{% for message in messages %}<li class="{{ message.tags }}">{{ message }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% block content %}{% endblock %}
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

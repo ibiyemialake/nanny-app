@@ -1,0 +1,14 @@
+{% extends "core/base.html" %}
+{% block title %}Join {{ invitation.household.name }}{% endblock %}
+{% block content %}
+<div class="auth">
+  <div class="panel">
+    <h1>Join {{ invitation.household.name }}</h1>
+    <p class="muted">You'll sign in with <strong>{{ invitation.email }}</strong>.</p>
+    <form method="post">{% csrf_token %}
+      {% include "core/_form.html" %}
+      <button class="btn go block" type="submit">Create my account</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

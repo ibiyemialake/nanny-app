@@ -1,0 +1,113 @@
+{% extends "core/base.html" %}
+{% block title %}Tasks{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Tasks</h1></div>
+<div class="grid two">
+  <div class="stack">
+    <section class="panel">
+      <h2>Quick add</h2>
+      {% if presets %}
+      <form method="post" action="{% url 'quick_task' %}" id="quick-form">{% csrf_token %}
+        <div class="field">{{ quick_form.assigned_to.as_field_group }}</div>
+        <div class="field">{{ quick_form.recurrence.as_field_group }}</div>
+        <div class="field">{{ quick_form.due_date.as_field_group }}</div>
+        <div class="field">{{ quick_form.weekdays.as_field_group }}</div>
+        <div class="preset-buttons">
+          {% for p in presets %}<button class="btn" name="{{ quick_form.preset.html_name }}" value="{{ p.pk }}">+ {{ p.title }}</button>{% endfor %}
+        </div>
+      </form>
+      {% else %}
+      <p class="empty">Save the tasks you give often as buttons below, then add them here with one tap.</p>
+      {% endif %}
+      <details style="margin-top:1rem">
+        <summary>Edit buttons</summary>
+        <ul class="rows" style="margin:.75rem 0">
+          {% for p in presets %}
+          <li><span>{{ p.title }}</span><form method="post" action="{% url 'delete_preset' p.pk %}">{% csrf_token %}<button class="btn small danger">Delete</button></form></li>
+          {% endfor %}
+        </ul>
+        <form method="post" action="{% url 'add_preset' %}" class="actions">{% csrf_token %}
+          <input type="text" name="title" maxlength="120" placeholder="e.g. Fold laundry" aria-label="New button" style="flex:1 1 12rem" required>
+          <button class="btn primary">Add button</button>
+        </form>
+      </details>
+    </section>
+
+    <section class="panel">
+      <h2>Today</h2>
+      {% if today_items %}
+      <ul class="rows">
+        {% for item in today_items %}
+        <li><div class="row-main">{% if item.completion %}<s class="muted">{{ item.task.title }}</s>{% else %}{{ item.task.title }}{% endif %}
+          <div class="small muted">{{ item.task.assigned_to.first_name|default:"Whoever is on shift" }}{% if item.task.due_time %}, {{ item.task.due_time|time:"g:i A" }}{% endif %}</div>
+          {% if item.completion.comment %}<div class="small">“{{ item.completion.comment }}”</div>{% endif %}</div>
+          {% if item.completion %}<span class="badge in">Done by {{ item.completion.completed_by.first_name }}</span>{% elif item.overdue %}<span class="badge warn">Overdue</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">Nothing for today.</p>{% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Repeating tasks</h2>
+      {% if recurring %}
+      <ul class="rows">
+        {% for t in recurring %}
+        <li><div class="row-main">{{ t.title }}<div class="small muted">{{ t.schedule_label }}{% if t.due_time %} at {{ t.due_time|time:"g:i A" }}{% endif %}, {{ t.assigned_to.first_name|default:"whoever is on shift" }}</div></div>
+          <form method="post" action="{% url 'archive_task' t.pk %}">{% csrf_token %}<button class="btn small danger">Remove</button></form></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">No repeating tasks yet.</p>{% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Coming up</h2>
+      {% if upcoming %}
+      <ul class="rows">
+        {% for t in upcoming %}
+        <li><div class="row-main">{{ t.title }}<div class="small muted">{{ t.due_date|date:"D M j" }}{% if t.due_time %} at {{ t.due_time|time:"g:i A" }}{% endif %}, {{ t.assigned_to.first_name|default:"whoever is on shift" }}</div></div>
+          <form method="post" action="{% url 'archive_task' t.pk %}">{% csrf_token %}<button class="btn small danger">Remove</button></form></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">No one-off tasks scheduled.</p>{% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Done this week</h2>
+      {% if recent %}
+      <ul class="rows">
+        {% for c in recent %}
+        <li><div class="row-main">{{ c.task.title }}{% if c.comment %}<div class="small">“{{ c.comment }}”</div>{% endif %}</div>
+          <div class="row-side small muted">{{ c.completed_by.first_name }}<br>{{ c.completed_at|date:"D M j, g:i A" }}</div></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">Ticked-off tasks will show here.</p>{% endif %}
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>New task</h2>
+    <form method="post" id="task-form">{% csrf_token %}
+      {% include "core/_form.html" %}
+      <button class="btn primary" type="submit">Add task</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Show "Date" for one-off tasks, "Days" for tasks on chosen days, and neither for every day.
+  function syncWhen(formId, prefix) {
+    var form = document.getElementById(formId);
+    if (!form) return;
+    var date = document.getElementById('id_' + prefix + 'due_date').closest('.field');
+    var days = document.getElementById('id_' + prefix + 'weekdays').closest('.field');
+    function sync() {
+      var when = (form.querySelector('input[name="' + prefix + 'recurrence"]:checked') || {}).value;
+      date.hidden = when !== 'once'; days.hidden = when !== 'weekly';
+    }
+    form.addEventListener('change', sync); sync();
+  }
+  syncWhen('task-form', '');
+  syncWhen('quick-form', 'quick-');
+</script>
+{% endblock %}

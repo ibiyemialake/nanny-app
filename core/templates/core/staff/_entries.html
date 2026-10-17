@@ -1,0 +1,22 @@
+{% load home_extras %}
+{% if entries %}
+<ul class="rows" style="margin-top:1rem">
+  {% for e in entries %}
+  <li>
+    <div class="row-main">
+      <strong>{{ e.check_in|date:"D M j" }}</strong> · {{ e.check_in|time:"g:i A" }}–{% if e.check_out %}{{ e.check_out|time:"g:i A" }}{% else %}<span class="badge warn">no check-out</span>{% endif %}
+      {% if e.edited %}<span class="badge">Adjusted</span>{% endif %}
+      {% if e.pending_request %}<span class="badge warn">Fix waiting</span>{% endif %}
+      {% if e.late_checkout_pending %}<span class="badge warn">Late finish{% if not owner_view %} being reviewed{% else %}: review{% endif %}</span>
+      {% elif e.late_checkout_status == "declined" %}<span class="badge">Paid to scheduled end</span>
+      {% elif e.late_checkout_status == "adjusted" and e.original_check_out != e.check_out %}<span class="badge">Finish set to {{ e.check_out|time:"g:i A" }}</span>{% endif %}
+      {% if owner_view %}<div><a class="small" href="{% url 'edit_entry' e.pk %}">Edit</a></div>
+      {% elif not e.pending_request and e.check_out or not e.pending_request and e.flagged_forgotten %}<div><a class="small" href="{% url 'request_correction' e.pk %}">Something wrong? Ask for a fix</a></div>{% endif %}
+    </div>
+    <div class="row-side num">{{ e.duration_seconds|duration }}</div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="empty">No shifts yet.</p>
+{% endif %}

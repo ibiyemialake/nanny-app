@@ -1,0 +1,54 @@
+{% extends "core/base.html" %}
+{% load home_extras %}
+{% block title %}Hours{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Hours</h1>
+  <a class="btn" href="{% url 'add_entry' %}">Add a shift by hand</a>
+</div>
+
+{% if pending or late_checkouts %}
+<section class="panel attention" style="margin-bottom:1.25rem">
+  <h2>Time to review</h2>
+  <ul class="rows">
+    {% for r in pending %}{% include "core/owner/_review.html" %}{% endfor %}
+    {% for e in late_checkouts %}{% include "core/owner/_late_checkout.html" %}{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<section class="panel">
+  <form method="get" class="actions" style="margin-bottom:1rem">
+    <div style="margin:0"><label for="f-staff">Who</label>
+      <select id="f-staff" name="staff"><option value="">Everyone</option>{% for s in staff_qs %}<option value="{{ s.pk }}" {% if selected == s.pk|stringformat:"d" %}selected{% endif %}>{{ s.name }}</option>{% endfor %}</select></div>
+    <div style="margin:0"><label for="f-days">Period</label>
+      <select id="f-days" name="days">
+        <option value="7" {% if days == "7" %}selected{% endif %}>Last 7 days</option>
+        <option value="30" {% if days == "30" %}selected{% endif %}>Last 30 days</option>
+        <option value="90" {% if days == "90" %}selected{% endif %}>Last 3 months</option>
+        <option value="365" {% if days == "365" %}selected{% endif %}>Last year</option>
+      </select></div>
+    <button class="btn" type="submit" style="align-self:flex-end">Show</button>
+  </form>
+  {% if entries %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>Who</th><th>Day</th><th>In</th><th>Out</th><th class="num">Time</th><th class="num">Pay</th><th>Notes</th><th></th></tr></thead>
+    <tbody>
+    {% for e in entries %}
+      <tr>
+        <td>{{ e.staff.first_name }}</td>
+        <td>{{ e.check_in|date:"D M j" }}</td>
+        <td>{{ e.check_in|time:"g:i A" }}
+          {% if e.late_minutes is not None and e.late_minutes > grace %}<br><span class="badge warn">{{ e.late_minutes|minutes_label }}</span>{% endif %}</td>
+        <td>{% if e.check_out %}{{ e.check_out|time:"g:i A" }}{% if e.late_checkout_pending %}<br><span class="badge warn">Late, review</span>{% endif %}{% elif e.flagged_forgotten %}<span class="badge bad">Missed</span>{% else %}<span class="badge in">Still here</span>{% endif %}</td>
+        <td class="num">{{ e.duration_seconds|duration }}</td>
+        <td class="num">{% if e.check_out %}{{ e.amount|money }}{% endif %}</td>
+        <td class="small">{% if e.edited %}<span class="badge">Adjusted</span> {% endif %}{{ e.checkout_note|truncatechars:80 }}</td>
+        <td><a class="btn small" href="{% url 'edit_entry' e.pk %}">Edit</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% else %}<p class="empty">No shifts in this period.</p>{% endif %}
+</section>
+{% endblock %}

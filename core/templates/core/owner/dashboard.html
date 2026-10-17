@@ -1,0 +1,142 @@
+{% extends "core/base.html" %}
+{% load home_extras %}
+{% block content %}
+<div class="page-head">
+  <h1>{{ today|date:"l, F j" }}</h1>
+  <a class="btn" href="{% url 'tasks' %}">Add a task</a>
+</div>
+
+{% if not has_staff %}
+<section class="panel attention" style="margin-bottom:1.25rem">
+  <h2>Invite your nannies</h2>
+  <p>Send each nanny an invite by email. Once they sign up, set their schedule and pay.</p>
+  <a class="btn primary" href="{% url 'staff_list' %}">Invite a nanny</a>
+</section>
+{% endif %}
+
+{% if paydays %}
+<section class="panel celebrate" style="margin-bottom:1.25rem">
+  <h2>{% if payday_today %}It's payday{% else %}Pay due{% endif %}</h2>
+  <ul class="rows">
+    {% for s in paydays %}
+    <li>
+      <div class="row-main">
+        <a href="{% url 'staff_detail' s.staff.pk %}"><strong>{{ s.staff.name }}</strong></a>
+        <div class="small muted">{{ s.start|date:"M j" }} – {{ s.end|date:"M j" }} · {{ s.seconds|duration|default:"0m" }} · payday {% if s.is_payday %}today{% else %}was {{ s.end|date:"D M j" }}{% endif %}</div>
+        <div class="small">Interac: {% if s.staff.interac %}<strong>{{ s.staff.interac }}</strong>{% else %}not added yet{% endif %}</div>
+      </div>
+      <div class="row-side num">
+        <strong>{{ s.amount|money }}</strong>
+        {% if s.pay_record %}<div><span class="badge in">Paid {{ s.pay_record.paid_at|date:"M j, g:i A" }}</span></div>
+        {% elif s.open_entries %}<div><span class="badge warn">Shift with no check-out</span></div><a class="small" href="{% url 'timesheet' %}">Fix on Hours</a>
+        {% elif s.late_checkouts %}<div><span class="badge warn">Late check-out to review</span></div>
+        {% else %}
+        <form method="post" action="{% url 'mark_paid' s.staff.pk %}" style="margin-top:.4rem"
+              onsubmit="return confirm('Mark {{ s.amount|money }} as paid to {{ s.staff.first_name|escapejs }}?')">{% csrf_token %}
+          <input type="hidden" name="pay_date" value="{{ s.end|date:'Y-m-d' }}">
+          <input type="hidden" name="next" value="{{ request.path }}">
+          <button class="btn go">Paid</button>
+        </form>
+        {% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+{% if forgotten or pending or late_checkouts %}
+<section class="panel attention" style="margin-bottom:1.25rem">
+  <h2>Needs your attention</h2>
+  <ul class="rows">
+    {% for e in forgotten %}
+    <li>
+      <div class="row-main"><strong>{{ e.staff.name }}</strong> never checked out from {{ e.check_in|date:"D M j, g:i A" }}.</div>
+      <a class="btn small" href="{% url 'edit_entry' e.pk %}">Set check-out time</a>
+    </li>
+    {% endfor %}
+    {% for r in pending %}{% include "core/owner/_review.html" %}{% endfor %}
+    {% for e in late_checkouts %}{% include "core/owner/_late_checkout.html" %}{% endfor %}
+  </ul>
+</section>
+{% endif %}
+
+<div class="grid two">
+  <div class="stack">
+    <section class="panel">
+      <h2>Who's here</h2>
+      {% if people %}
+      <ul class="rows">
+        {% for p in people %}
+        <li>
+          <div class="row-main">
+            <a href="{% url 'staff_detail' p.staff.pk %}"><strong>{{ p.staff.name }}</strong></a>
+            <div class="small muted">
+              {% for s in p.slots %}{% if forloop.first %}Scheduled {% endif %}{{ s.start_time|time:"g:i A" }}–{{ s.end_time|time:"g:i A" }}{% if not forloop.last %}, {% endif %}{% empty %}Not scheduled today{% endfor %}
+            </div>
+            {% for e in p.today_entries %}{% if e.check_out %}<div class="small">Worked {{ e.check_in|time:"g:i" }}–{{ e.check_out|time:"g:i A" }} ({{ e.duration_seconds|duration }})</div>{% endif %}{% endfor %}
+          </div>
+          <div class="row-side">
+            {% if p.open_entry %}
+              <span class="badge in">Here since {{ p.open_entry.check_in|time:"g:i A" }}</span>
+            {% elif p.today_entries %}
+              <span class="badge out">Gone for the day</span>
+            {% else %}
+              <span class="badge">Not in</span>
+            {% endif %}
+            {% if p.arrival == "late" %}<div><span class="badge warn">{{ p.arrival_minutes|minutes_label }}</span></div>
+            {% elif p.arrival == "early" %}<div class="small muted">{{ p.arrival_minutes|minutes_label }}</div>{% endif %}
+            {% if p.summary.is_payday %}<div><span class="badge {% if p.summary.pay_record %}in{% else %}warn{% endif %}">Payday: {{ p.summary.amount|money }}{% if p.summary.pay_record %} paid{% endif %}</span></div>{% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">No nannies yet.</p>{% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Latest notes</h2>
+      {% if notes %}
+      <ul class="rows">
+        {% for e in notes %}
+        <li><div class="row-main"><strong>{{ e.staff.first_name }}</strong> <span class="small muted">checked out {{ e.check_out|date:"D M j, g:i A" }}</span>
+          <div class="note">{{ e.checkout_note }}</div></div></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">Notes your nannies leave when they check out will show up here.</p>{% endif %}
+    </section>
+  </div>
+
+  <div class="stack">
+    <section class="panel">
+      <h2>Today's tasks</h2>
+      {% if tasks %}
+      <ul class="rows">
+        {% for item in tasks %}
+        <li>
+          <div class="row-main">
+            {% if item.completion %}<s class="muted">{{ item.task.title }}</s>{% else %}{{ item.task.title }}{% endif %}
+            <div class="small muted">{{ item.task.assigned_to.first_name|default:"Whoever is on shift" }}{% if item.task.due_time %}, {{ item.task.due_time|time:"g:i A" }}{% endif %}{% if item.overdue %} <span class="badge warn">From {{ item.date|date:"M j" }}</span>{% endif %}</div>
+            {% if item.completion.comment %}<div class="small">“{{ item.completion.comment }}”</div>{% endif %}
+          </div>
+          {% if item.completion %}<span class="badge in">Done {{ item.completion.completed_at|time:"g:i A" }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">No tasks today.</p>{% endif %}
+    </section>
+
+    <section class="panel">
+      <h2>Next paydays</h2>
+      {% if people %}
+      <ul class="rows">
+        {% for p in people %}
+        <li><div class="row-main">{{ p.staff.first_name }}<div class="small muted">{{ p.summary.end|date:"D M j" }}</div></div>
+          <div class="row-side num">{{ p.summary.amount|money }}<div class="small muted">{{ p.summary.seconds|duration|default:"0m" }} so far</div></div></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="empty">Paydays appear once you've added a nanny.</p>{% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

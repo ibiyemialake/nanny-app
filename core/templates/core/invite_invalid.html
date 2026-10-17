@@ -1,0 +1,12 @@
+{% extends "core/base.html" %}
+{% block title %}Invite no longer works{% endblock %}
+{% block content %}
+<div class="auth"><div class="panel">
+  <h1>This invite no longer works</h1>
+  {% if invitation.accepted_at %}
+    <p>It's already been used. <a href="{% url 'login' %}">Sign in</a> with {{ invitation.email }} instead.</p>
+  {% else %}
+    <p>It has expired or been cancelled. Ask for a new invite.</p>
+  {% endif %}
+</div></div>
+{% endblock %}

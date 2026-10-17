@@ -1,0 +1,24 @@
+{% extends "core/base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="page-head"><h1>Settings</h1></div>
+<div class="grid two">
+  <section class="panel">
+    <h2>Home</h2>
+    <form method="post">{% csrf_token %}
+      {% include "core/_form.html" %}
+      <button class="btn primary" type="submit">Save settings</button>
+    </form>
+  </section>
+  <section class="panel">
+    <h2>Home Wi-Fi restriction</h2>
+    {% if networks %}
+      <p>Nannies can only use the app from: <strong>{{ networks|join:", " }}</strong>.</p>
+    {% else %}
+      <p><span class="badge warn">Off</span> Nannies can use the app from anywhere. It's set when the app is installed on your server.</p>
+    {% endif %}
+    <p class="small muted">Your device's address right now: {{ client_ip|default:"unknown" }}{% if networks %} ({% if on_home_network %}on{% else %}not on{% endif %} the home network){% endif %}.</p>
+    <p class="small muted">Invite links start with {{ site_url }}.</p>
+  </section>
+</div>
+{% endblock %}

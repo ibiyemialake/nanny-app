@@ -1,0 +1,110 @@
+{% extends "core/base.html" %}
+{% load home_extras %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="stack">
+
+  {% if summary.is_payday %}
+  <section class="panel celebrate">
+    <h2>It's payday</h2>
+    <p>You worked <strong class="num">{{ summary.seconds|duration|default:"0m" }}</strong> this period ({{ summary.start|date:"M j" }} – {{ summary.end|date:"M j" }}), which comes to <strong class="num">{{ summary.amount|money }}</strong>.</p>
+    {% if summary.pay_record %}
+    <p><span class="badge in">Paid</span> {{ staff.household.owner.first_name|default:"Your employer" }} paid you <strong class="num">{{ summary.pay_record.amount|money }}</strong> on {{ summary.pay_record.paid_at|date:"M j, g:i A" }}{% if staff.interac %} by Interac to {{ staff.interac }}{% endif %}.</p>
+    {% else %}
+    <p class="small">Not paid yet{% if staff.interac %}. Your pay goes by Interac to {{ staff.interac }}{% endif %}.</p>
+    {% endif %}
+    {% if summary.open_entries %}<p class="small">One shift still needs a check-out time, so it isn't counted yet.</p>{% endif %}
+    <a href="{% url 'my_hours' %}">See the shifts</a>
+  </section>
+  {% elif recently_paid %}
+  <section class="panel celebrate">
+    <h2>You've been paid</h2>
+    <p><span class="badge in">Paid</span> {{ staff.household.owner.first_name|default:"Your employer" }} paid you <strong class="num">{{ recently_paid.amount|money }}</strong> for {{ recently_paid.period_start|date:"M j" }} – {{ recently_paid.period_end|date:"M j" }} on {{ recently_paid.paid_at|date:"M j, g:i A" }}.</p>
+    <a href="{% url 'my_hours' %}">See past pay</a>
+  </section>
+  {% endif %}
+
+  {% if open_entry and open_entry.flagged_forgotten %}
+  <section class="panel attention">
+    <h2>Did you forget to check out?</h2>
+    <p>You've been checked in since {{ open_entry.check_in|date:"D M j, g:i A" }}.</p>
+    <div class="actions">
+      <a class="btn primary" href="{% url 'request_correction' open_entry.pk %}">I left earlier: fix the time</a>
+      <a class="btn" href="{% url 'check_out' %}">I'm still here: check out now</a>
+    </div>
+  </section>
+  {% else %}
+  <section class="clock">
+    {% if open_entry %}
+      <p class="clock-status">Checked in at {{ open_entry.check_in|time:"g:i A" }}</p>
+      <a class="punch out" href="{% url 'check_out' %}">
+        <span class="punch-label">Check out</span>
+        <span class="punch-sub elapsed" data-since="{{ open_entry.check_in|date:'c' }}">{{ open_entry.check_in|timesince }}</span>
+      </a>
+    {% else %}
+      <p class="clock-status">
+        Hi {{ staff.first_name }}.
+        {% for slot in todays_slots %}{% if forloop.first %}Today: {% endif %}{{ slot.start_time|time:"g:i A" }}–{{ slot.end_time|time:"g:i A" }}{% if not forloop.last %}, {% endif %}{% empty %}No shift scheduled today.{% endfor %}
+      </p>
+      <form method="post" action="{% url 'check_in' %}">{% csrf_token %}
+        <button class="punch" type="submit">
+          <span class="punch-label">Check in</span>
+          <span class="punch-sub" data-clock>{% now "g:i A" %}</span>
+        </button>
+      </form>
+    {% endif %}
+    {% if today_entries %}
+      <p class="small muted" style="margin:1.2rem 0 0">Earlier today: {% for e in today_entries %}{{ e.check_in|time:"g:i" }}–{{ e.check_out|time:"g:i A" }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  {% if not staff.interac %}
+  <section class="panel attention">
+    <h2>Add your Interac details</h2>
+    <p>Add the email or phone number your pay should be sent to by Interac e-Transfer.</p>
+    <a class="btn primary" href="{% url 'my_hours' %}#payment-details">Add payment details</a>
+  </section>
+  {% endif %}
+
+  <section class="panel">
+    <h2>Today's tasks</h2>
+    {% if tasks %}
+      <ul class="rows">{% for item in tasks %}{% include "core/staff/_task_item.html" %}{% endfor %}</ul>
+    {% else %}
+      <p class="empty">Nothing on the list today.</p>
+    {% endif %}
+  </section>
+
+  {% if not summary.is_payday %}
+  <section class="panel">
+    <h2>This pay period</h2>
+    <div class="tally">
+      <div><strong>{{ summary.seconds|duration|default:"0m" }}</strong><span>worked so far</span></div>
+      <div><strong>{{ summary.amount|money }}</strong><span>earned so far</span></div>
+    </div>
+    <p class="small muted">Payday is {{ summary.end|date:"l, F j" }}{% if summary.days_until_payday == 1 %} (tomorrow){% else %}, in {{ summary.days_until_payday }} days{% endif %}.{% if pending_requests %} You have a time fix waiting for review.{% endif %}</p>
+    <a href="{% url 'my_hours' %}">See my shifts</a>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  // Live elapsed time on the check-out button and current time on the check-in button.
+  (function () {
+    var el = document.querySelector('[data-since]');
+    var clock = document.querySelector('[data-clock]');
+    function tick() {
+      if (el) {
+        var mins = Math.max(0, Math.floor((Date.now() - new Date(el.dataset.since)) / 60000));
+        el.textContent = Math.floor(mins / 60) + 'h ' + String(mins % 60).padStart(2, '0') + 'm';
+      }
+      if (clock) {
+        clock.textContent = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      }
+    }
+    tick(); setInterval(tick, 20000);
+  })();
+</script>
+{% endblock %}

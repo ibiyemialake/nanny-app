@@ -1,0 +1,17 @@
+{% load home_extras %}
+<li>
+  <div class="row-main">
+    <strong>{{ r.entry.staff.name }}</strong> asks to change the shift on {{ r.entry.check_in|date:"D M j" }}
+    <div class="small">
+      Was: {{ r.entry.check_in|time:"g:i A" }}–{% if r.entry.check_out %}{{ r.entry.check_out|time:"g:i A" }}{% else %}no check-out{% endif %}<br>
+      Wants: <strong>{{ r.new_check_in|date:"M j, g:i A" }} – {{ r.new_check_out|date:"M j, g:i A" }}</strong>
+    </div>
+    <div class="note">{{ r.reason }}</div>
+    <form method="post" action="{% url 'review_request' r.pk %}" class="actions" style="margin-top:.6rem">{% csrf_token %}
+      <input type="hidden" name="next" value="{{ request.path }}">
+      <input type="text" name="review_note" placeholder="Reply (optional)" aria-label="Reply" style="flex:1 1 12rem">
+      <button class="btn small go" name="decision" value="approve">Approve</button>
+      <button class="btn small danger" name="decision" value="reject">Decline</button>
+    </form>
+  </div>
+</li>
