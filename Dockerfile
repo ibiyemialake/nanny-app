@@ -29,5 +29,5 @@ VOLUME ["/data"]
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/login/', timeout=4)"
 
-# Apply any new migrations, then serve. SQLite handles a home's traffic easily with a couple of workers.
-CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn homeapp.wsgi --bind 0.0.0.0:8000 --workers 2 --threads 4 --access-logfile - --forwarded-allow-ips='*'"]
+# Apply any new migrations, then serve (options are in gunicorn.conf.py).
+CMD ["sh", "-c", "python manage.py migrate --noinput && exec gunicorn homeapp.wsgi"]
