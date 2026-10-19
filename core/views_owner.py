@@ -4,6 +4,7 @@ from datetime import date, time, timedelta
 from django.contrib import messages
 from django.core.mail import send_mail
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.conf import settings
@@ -30,12 +31,12 @@ def safe_next(request, fallback):
 
 def late_checkouts(household):
     return (TimeEntry.objects.filter(staff__household=household, late_checkout_status=TimeEntry.LATE_PENDING)
-            .select_related("staff__user").order_by("check_in"))
+            .select_related("staff__user", "handover").order_by("check_in"))
 
 
 def unscheduled_shifts(household):
     return (TimeEntry.objects.filter(staff__household=household, unscheduled_status=TimeEntry.UNSCHEDULED_PENDING)
-            .select_related("staff__user").order_by("check_in"))
+            .select_related("staff__user", "handover").order_by("check_in"))
 
 
 def invite_link(invitation):
@@ -71,8 +72,9 @@ def dashboard(request):
                  .exclude(edit_requests__status=TimeEditRequest.PENDING).select_related("staff__user"))
     pending = (TimeEditRequest.objects.filter(entry__staff__household=household, status=TimeEditRequest.PENDING)
                .select_related("entry__staff__user"))
-    notes = (TimeEntry.objects.filter(staff__household=household).exclude(checkout_note="")
-             .select_related("staff__user").order_by("-check_out")[:6])
+    notes = (TimeEntry.objects.filter(staff__household=household, check_out__isnull=False)
+             .filter(Q(handover__isnull=False) | ~Q(checkout_note=""))
+             .select_related("staff__user", "handover").order_by("-check_out")[:6])
     return render(request, "core/owner/dashboard.html", {
         "today": today,
         "people": people,
@@ -264,7 +266,7 @@ def timesheet(request):
     household = request.household
     flag_forgotten_checkouts(household)
     staff_qs = household.staff.select_related("user")
-    entries = TimeEntry.objects.filter(staff__household=household).select_related("staff__user")
+    entries = TimeEntry.objects.filter(staff__household=household).select_related("staff__user", "handover")
     selected = request.GET.get("staff")
     if selected and selected.isdigit():
         entries = entries.filter(staff_id=int(selected))

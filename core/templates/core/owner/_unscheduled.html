@@ -5,7 +5,7 @@
     <div class="small">
       Checked in {{ e.check_in|time:"g:i A" }}, {% if e.check_out %}checked out {{ e.check_out|time:"g:i A" }} ({{ e.duration_seconds|duration }}, {{ e.amount|money }}){% else %}still here{% endif %}
     </div>
-    {% if e.checkout_note %}<div class="note">{{ e.checkout_note }}</div>{% endif %}
+    {% include "core/owner/_handover.html" %}
     <form method="post" action="{% url 'review_unscheduled' e.pk %}" class="actions" style="margin-top:.6rem">{% csrf_token %}
       <input type="hidden" name="next" value="{{ request.path }}">
       <button class="btn small go" name="decision" value="approve">Approve hours</button>

@@ -9,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.utils import timezone
 
-from .models import WEEKDAYS, Household, StaffMember, Task
+from .models import WEEKDAYS, Handover, Household, StaffMember, Task
 from .permissions import get_role
 
 User = get_user_model()
@@ -185,6 +185,54 @@ class AddEntryForm(EntryForm):
         self.fields["staff"].queryset = StaffMember.objects.filter(household=household).select_related("user")
         self.fields["hourly_rate"].required = False
         self.fields["hourly_rate"].help_text = "Leave empty to use their current rate."
+
+
+def time_input():
+    return forms.TimeInput(attrs={"type": "time"}, format="%H:%M")
+
+
+class HandoverForm(NoColon, forms.ModelForm):
+    checkout_note = forms.CharField(
+        label="Additional notes", required=False, widget=forms.Textarea(attrs={"rows": 4}),
+        help_text="Optional. Anything else the family should know.")
+
+    class Meta:
+        model = Handover
+        fields = ["total_feed_ml", "last_feed", "total_naps", "last_nap", "total_diapers", "last_diaper", "mood"]
+        labels = {
+            "total_feed_ml": "Total feed (ml)", "last_feed": "Last feed",
+            "total_naps": "Total naps", "last_nap": "Last nap",
+            "total_diapers": "Total diaper changes", "last_diaper": "Last diaper change",
+            "mood": "Mood at handover",
+        }
+        widgets = {
+            "total_feed_ml": forms.NumberInput(attrs={"inputmode": "numeric", "min": 0}),
+            "total_naps": forms.NumberInput(attrs={"inputmode": "numeric", "min": 0}),
+            "total_diapers": forms.NumberInput(attrs={"inputmode": "numeric", "min": 0}),
+            "last_feed": time_input(), "last_nap": time_input(), "last_diaper": time_input(),
+            "mood": forms.RadioSelect(attrs={"class": "mood-picker"}),
+        }
+
+    # Each "last" time is needed only if there was at least one.
+    PAIRS = [("total_feed_ml", "last_feed", "feed"), ("total_naps", "last_nap", "nap"),
+             ("total_diapers", "last_diaper", "diaper change")]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["mood"].choices = Handover.MOODS  # no empty "---------" choice
+        for total, last, _ in self.PAIRS:
+            self.fields[last].help_text = "Leave empty if there were none."
+
+    def clean(self):
+        cleaned = super().clean()
+        for total, last, word in self.PAIRS:
+            count = cleaned.get(total)
+            if count:
+                if not cleaned.get(last):
+                    self.add_error(last, f"Add the time of the last {word}.")
+            elif count == 0:
+                cleaned[last] = None
+        return cleaned
 
 
 class CorrectionForm(NoColon, forms.Form):

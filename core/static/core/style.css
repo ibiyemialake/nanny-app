@@ -173,4 +173,5 @@ tr:last-child td { border-bottom: 0; }
 .field fieldset > div > div > label:has(input:checked) { border-color: var(--out); background: var(--out-soft); color: var(--out); }
 .field fieldset input { margin: 0; accent-color: var(--out); }
 .field > label + .helptext, .field legend + .helptext { margin: -.1rem 0 .35rem; }
+.mood-field fieldset > div > div > label { font-size: 1.05rem; padding: .5rem 1rem; }
 [hidden] { display: none !important; }

@@ -181,6 +181,30 @@ class TimeEntry(models.Model):
         return "on time"
 
 
+class Handover(models.Model):
+    """What the nanny reports about the baby when they check out."""
+    HAPPY, SAD, CRYING, FUSSY = "happy", "sad", "crying", "fussy"
+    MOODS = [(HAPPY, "😊 Happy"), (SAD, "😢 Sad"), (CRYING, "😭 Crying"), (FUSSY, "😣 Fussy")]
+
+    entry = models.OneToOneField(TimeEntry, on_delete=models.PROTECT, related_name="handover")
+    total_feed_ml = models.PositiveIntegerField()
+    last_feed = models.TimeField(null=True, blank=True)
+    total_naps = models.PositiveSmallIntegerField()
+    last_nap = models.TimeField(null=True, blank=True)
+    total_diapers = models.PositiveSmallIntegerField()
+    last_diaper = models.TimeField(null=True, blank=True)
+    mood = models.CharField(max_length=10, choices=MOODS)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def mood_emoji(self):
+        return self.get_mood_display().split(" ")[0]
+
+    @property
+    def mood_word(self):
+        return self.get_mood_display().split(" ", 1)[1]
+
+
 class TimeEditRequest(models.Model):
     PENDING, APPROVED, REJECTED = "pending", "approved", "rejected"
     STATUSES = [(PENDING, "Waiting for review"), (APPROVED, "Approved"), (REJECTED, "Declined")]

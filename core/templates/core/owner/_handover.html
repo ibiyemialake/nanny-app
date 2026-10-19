@@ -1,0 +1,9 @@
+{% if e.handover %}{% with h=e.handover %}
+<div class="small handover">
+  <span title="Mood at handover">{{ h.mood_emoji }} {{ h.mood_word }}</span>
+  · 🍼 {{ h.total_feed_ml }} ml{% if h.last_feed %}, last {{ h.last_feed|time:"g:i A" }}{% endif %}
+  · 😴 {{ h.total_naps }} nap{{ h.total_naps|pluralize }}{% if h.last_nap %}, last {{ h.last_nap|time:"g:i A" }}{% endif %}
+  · 🧷 {{ h.total_diapers }} diaper{{ h.total_diapers|pluralize }}{% if h.last_diaper %}, last {{ h.last_diaper|time:"g:i A" }}{% endif %}
+</div>
+{% endwith %}{% endif %}
+{% if e.checkout_note %}<div class="note">{{ e.checkout_note }}</div>{% endif %}

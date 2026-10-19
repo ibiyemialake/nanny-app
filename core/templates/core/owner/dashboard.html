@@ -96,15 +96,15 @@
     </section>
 
     <section class="panel">
-      <h2>Latest notes</h2>
+      <h2>Latest handovers</h2>
       {% if notes %}
       <ul class="rows">
         {% for e in notes %}
         <li><div class="row-main"><strong>{{ e.staff.first_name }}</strong> <span class="small muted">checked out {{ e.check_out|date:"D M j, g:i A" }}</span>
-          <div class="note">{{ e.checkout_note }}</div></div></li>
+          {% include "core/owner/_handover.html" %}</div></li>
         {% endfor %}
       </ul>
-      {% else %}<p class="empty">Notes your nannies leave when they check out will show up here.</p>{% endif %}
+      {% else %}<p class="empty">The handover your nannies fill in when they check out will show up here: feeds, naps, diapers, mood and notes.</p>{% endif %}
     </section>
   </div>
 
