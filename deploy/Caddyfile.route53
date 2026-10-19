@@ -1,0 +1,15 @@
+# HTTPS with a real certificate from Let's Encrypt, proven through Route 53 (see compose.https.yaml).
+# SITE_DOMAIN only needs to resolve on the home network, so nothing has to be opened to the internet.
+# Caddy also redirects http:// on port 80 to https:// on its own.
+{$SITE_DOMAIN} {
+	tls {
+		dns route53
+	}
+	encode zstd gzip
+	reverse_proxy web:8000
+}
+
+# The old plain-HTTP address: send anyone who saved it to the new one.
+:8088 {
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}
