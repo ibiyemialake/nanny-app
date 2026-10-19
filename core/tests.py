@@ -8,11 +8,15 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import (Household, Invitation, PayRecord, ScheduleSlot, StaffMember, Task, TaskCompletion, TaskPreset,
+from .models import (Handover, Household, Invitation, PayRecord, ScheduleSlot, StaffMember, Task, TaskCompletion, TaskPreset,
                      TimeEditRequest, TimeEntry)
 from .services import flag_forgotten_checkouts, period_containing, summarize_period, task_items
 
 User = get_user_model()
+
+
+HANDOVER = {"total_feed_ml": "450", "last_feed": "14:30", "total_naps": "2", "last_nap": "13:00",
+            "total_diapers": "4", "last_diaper": "15:15", "mood": "happy"}
 
 
 def aware(d, t):
@@ -59,10 +63,40 @@ class CheckInOutTests(Base):
         entry = TimeEntry.objects.get()
         self.assertTrue(entry.is_open)
         self.assertEqual(entry.hourly_rate, Decimal("20.00"))
-        self.client.post(reverse("check_out"), {"checkout_note": "Great day"})
+        self.client.post(reverse("check_out"), {**HANDOVER, "checkout_note": "Great day"})
         entry.refresh_from_db()
         self.assertFalse(entry.is_open)
         self.assertEqual(entry.checkout_note, "Great day")
+        self.assertEqual(entry.handover.total_feed_ml, 450)
+        self.assertEqual(entry.handover.mood_word, "Happy")
+
+    def test_check_out_needs_handover(self):
+        self.client.post(reverse("check_in"))
+        r = self.client.post(reverse("check_out"), {"checkout_note": "Bye"})
+        self.assertContains(r, "Please fill in the highlighted fields")
+        self.assertTrue(TimeEntry.objects.get().is_open)
+        self.assertFalse(Handover.objects.exists())
+
+    def test_last_time_needed_only_when_total_above_zero(self):
+        self.client.post(reverse("check_in"))
+        r = self.client.post(reverse("check_out"), {**HANDOVER, "last_nap": ""})
+        self.assertContains(r, "Add the time of the last nap.")
+        self.assertTrue(TimeEntry.objects.get().is_open)
+        self.client.post(reverse("check_out"), {**HANDOVER, "total_naps": "0", "last_nap": "13:00"})
+        handover = Handover.objects.get()
+        self.assertEqual(handover.total_naps, 0)
+        self.assertIsNone(handover.last_nap)
+
+    def test_owner_sees_handover(self):
+        self.client.post(reverse("check_in"))
+        self.client.post(reverse("check_out"), {**HANDOVER, "mood": "fussy", "checkout_note": "Teething"})
+        self.client.logout()
+        self.client.login(username="owner@x.com", password="pw-owner-123")
+        r = self.client.get("/")
+        self.assertContains(r, "Latest handovers")
+        self.assertContains(r, "😣 Fussy")
+        self.assertContains(r, "450 ml, last 2:30 PM")
+        self.assertContains(r, "Teething")
 
     def test_double_check_in_blocked(self):
         self.client.post(reverse("check_in"))
@@ -187,7 +221,7 @@ class TaskTests(Base):
         completion = TaskCompletion.objects.get()
 
         # Once checked out, ticks can't be undone either.
-        self.client.post(reverse("check_out"), {"checkout_note": ""})
+        self.client.post(reverse("check_out"), HANDOVER)
         self.client.post(reverse("undo_task"), {"completion": completion.pk})
         self.assertTrue(TaskCompletion.objects.exists())
 
@@ -245,7 +279,7 @@ class LateCheckoutTests(Base):
     def check_out_at(self, t):
         self.client.login(username="nanny@x.com", password="pw-nanny-123")
         with mock.patch("django.utils.timezone.now", return_value=aware(self.day, t)):
-            self.client.post(reverse("check_out"), {"checkout_note": ""})
+            self.client.post(reverse("check_out"), HANDOVER)
         self.client.logout()
         self.entry.refresh_from_db()
 

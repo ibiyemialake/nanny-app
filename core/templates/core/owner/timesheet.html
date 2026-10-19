@@ -46,7 +46,7 @@
         <td>{% if e.check_out %}{{ e.check_out|time:"g:i A" }}{% if e.late_checkout_pending %}<br><span class="badge warn">Late, review</span>{% endif %}{% elif e.flagged_forgotten %}<span class="badge bad">Missed</span>{% else %}<span class="badge in">Still here</span>{% endif %}</td>
         <td class="num">{{ e.duration_seconds|duration }}</td>
         <td class="num">{% if e.check_out %}{{ e.amount|money }}{% endif %}</td>
-        <td class="small">{% if e.edited %}<span class="badge">Adjusted</span> {% endif %}{{ e.checkout_note|truncatechars:80 }}</td>
+        <td class="small">{% if e.edited %}<span class="badge">Adjusted</span> {% endif %}{% if e.handover %}<span title="{{ e.handover.mood_word }}">{{ e.handover.mood_emoji }}</span> {{ e.handover.total_feed_ml }} ml, {{ e.handover.total_naps }} nap{{ e.handover.total_naps|pluralize }}, {{ e.handover.total_diapers }} diaper{{ e.handover.total_diapers|pluralize }}{% if e.checkout_note %}<br>{% endif %}{% endif %}{{ e.checkout_note|truncatechars:80 }}</td>
         <td><a class="btn small" href="{% url 'edit_entry' e.pk %}">Edit</a></td>
       </tr>
     {% endfor %}

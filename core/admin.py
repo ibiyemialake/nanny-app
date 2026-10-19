@@ -3,7 +3,7 @@ from django.contrib import admin
 from . import models
 
 for model in (models.Household, models.StaffMember, models.ScheduleSlot, models.TimeEntry, models.TimeEditRequest,
-              models.TaskPreset, models.Task, models.TaskCompletion, models.Invitation, models.PayRecord):
+              models.Handover, models.TaskPreset, models.Task, models.TaskCompletion, models.Invitation, models.PayRecord):
     admin.site.register(model)
 
 

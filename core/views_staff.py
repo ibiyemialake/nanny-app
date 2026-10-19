@@ -2,12 +2,13 @@
 from datetime import date, timedelta
 
 from django.contrib import messages
+from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
-from .forms import CorrectionForm, InteracForm
+from .forms import CorrectionForm, HandoverForm, InteracForm
 from .models import Task, TaskCompletion, TimeEditRequest, TimeEntry
 from .permissions import staff_required
 from .services import (blocking_open_entry, current_summary, flag_forgotten_checkouts, fmt_dt, fmt_time, local_dt, log,
@@ -99,19 +100,26 @@ def check_out(request):
     if not entry:
         messages.info(request, "You're not checked in.")
         return redirect("home")
-    if request.method == "POST":
+    form = HandoverForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
         entry.check_out = timezone.now()
-        entry.checkout_note = request.POST.get("checkout_note", "").strip()[:5000]
+        entry.checkout_note = form.cleaned_data["checkout_note"].strip()[:5000]
         late = is_late_checkout(entry, request.household)
         if late:
             entry.late_checkout_status = TimeEntry.LATE_PENDING
             entry.original_check_out = entry.check_out
-        entry.save(update_fields=["check_out", "checkout_note", "late_checkout_status", "original_check_out"])
+        with transaction.atomic():
+            entry.save(update_fields=["check_out", "checkout_note", "late_checkout_status", "original_check_out"])
+            handover = form.save(commit=False)
+            handover.entry = entry
+            handover.save()
         detail = f"{staff.name} checked out at {fmt_time(entry.check_out)}"
         if late:
             detail += f" ({minutes_label(entry.late_checkout_minutes)} after the scheduled end)"
         log(request.household, request.user, "Checked out",
-            detail + (" and left a note." if entry.checkout_note else "."))
+            f"{detail}. Handover: {handover.total_feed_ml} ml fed, {handover.total_naps} nap(s), "
+            f"{handover.total_diapers} diaper change(s), mood {handover.mood_word.lower()}"
+            + (", with a note." if entry.checkout_note else "."))
         messages.success(request, f"Checked out at {fmt_time(entry.check_out)}. See you next time.")
         if late:
             messages.info(request, "That's later than your scheduled finish, so the extra time will be reviewed "
@@ -119,6 +127,7 @@ def check_out(request):
         return redirect("home")
     return render(request, "core/staff/check_out.html", {
         "entry": entry,
+        "form": form,
         "tasks": task_items(staff.household, timezone.localdate(), staff),
         "can_tick_tasks": True,
     })

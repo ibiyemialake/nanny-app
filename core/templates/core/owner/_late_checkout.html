@@ -6,7 +6,7 @@
       Scheduled: {{ e.scheduled_start|time:"g:i A" }}–{{ e.scheduled_end|time:"g:i A" }}<br>
       Checked in {{ e.check_in|time:"g:i A" }}, checked out <strong>{{ e.check_out|date:"M j, g:i A" }}</strong> ({{ e.duration_seconds|duration }})
     </div>
-    {% if e.checkout_note %}<div class="note">{{ e.checkout_note }}</div>{% endif %}
+    {% include "core/owner/_handover.html" %}
     <form method="post" action="{% url 'review_late_checkout' e.pk %}" class="actions" style="margin-top:.6rem">{% csrf_token %}
       <input type="hidden" name="next" value="{{ request.path }}">
       <button class="btn small go" name="decision" value="accept">Accept {{ e.check_out|time:"g:i A" }}</button>

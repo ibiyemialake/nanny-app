@@ -7,11 +7,18 @@
     <h1>Check out</h1>
     <p class="muted">Checked in {{ entry.check_in|date:"D M j, g:i A" }}.</p>
     <form method="post">{% csrf_token %}
-      <div class="field">
-        <label for="note">Notes for the family</label>
-        <textarea id="note" name="checkout_note" rows="5" placeholder="How the day went, meals, naps, anything we should know"></textarea>
-        <span class="helptext">Optional.</span>
+      <h2 style="margin-top:1rem">Handover</h2>
+      {% if form.errors %}<ul class="errorlist nonfield"><li>Please fill in the highlighted fields.</li></ul>{% endif %}
+      <div class="form-cols">
+        <div class="field">{{ form.total_feed_ml.as_field_group }}</div>
+        <div class="field">{{ form.last_feed.as_field_group }}</div>
+        <div class="field">{{ form.total_naps.as_field_group }}</div>
+        <div class="field">{{ form.last_nap.as_field_group }}</div>
+        <div class="field">{{ form.total_diapers.as_field_group }}</div>
+        <div class="field">{{ form.last_diaper.as_field_group }}</div>
       </div>
+      <div class="field mood-field">{{ form.mood.as_field_group }}</div>
+      <div class="field">{{ form.checkout_note.as_field_group }}</div>
       <button class="btn primary block" type="submit">Check out now</button>
     </form>
   </section>

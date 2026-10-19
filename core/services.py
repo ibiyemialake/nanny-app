@@ -105,7 +105,7 @@ def summarize_period(staff, start, end):
     entries = list(
         staff.entries.filter(check_in__gte=local_dt(start, time.min),
                              check_in__lt=local_dt(end + timedelta(days=1), time.min))
-        .order_by("check_in")
+        .select_related("handover").order_by("check_in")
     )
     summary = PeriodSummary(staff=staff, start=start, end=end, entries=entries)
     raw_amount = Decimal("0")
